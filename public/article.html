@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Article — RawTalent Knowledge Base</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="nav-brand" href="/">
+      <span class="nav-logo">Raw<span>Talent</span></span>
+      <span class="nav-tag">Knowledge Base</span>
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">
+        <div class="nav-avatar" id="navAvatar">?</div>
+      </div>
+      <button class="nav-btn ghost" onclick="logout()">Sign Out</button>
+      <button class="nav-btn admin-btn" id="adminNavBtn" onclick="location.href='/admin'" style="display:none">
+        ⚙ Admin
+      </button>
+    </div>
+  </nav>
+
+  <div id="pageContent">
+    <div class="loading-spinner" style="padding-top:80px">
+      <div class="spinner"></div>
+      Loading article…
+    </div>
+  </div>
+
+  <!-- marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- DOMPurify for sanitization -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
+
+  <script>
+    const articleId = new URLSearchParams(location.search).get('id');
+    if (!articleId) location.href = '/';
+
+    async function init() {
+      try {
+        const me = await fetch('/auth/me').then(r => r.json());
+        if (me.error) { location.href = '/login.html'; return; }
+        document.getElementById('navAvatar').textContent = (me.name || me.email)[0].toUpperCase();
+        if (me.role === 'admin') document.getElementById('adminNavBtn').style.display = 'inline-flex';
+      } catch { location.href = '/login.html'; return; }
+
+      loadArticle();
+    }
+
+    async function loadArticle() {
+      try {
+        const res = await fetch(`/api/articles/${articleId}`);
+        if (res.status === 404) {
+          document.getElementById('pageContent').innerHTML = `
+            <div class="error-page">
+              <div class="error-code">404</div>
+              <div class="error-title">Article not found</div>
+              <p class="error-sub">This article may have been moved or deleted.</p>
+              <br>
+              <a href="/" style="color:var(--orange);font-weight:600">← Back to Knowledge Base</a>
+            </div>`;
+          return;
+        }
+        const article = await res.json();
+        document.title = `${article.title} — RawTalent Knowledge Base`;
+        renderArticle(article);
+      } catch {
+        document.getElementById('pageContent').innerHTML = `
+          <div class="empty-state"><div class="empty-icon">⚠️</div>
+          <div class="empty-title">Failed to load article</div>
+          <p>Please refresh and try again.</p></div>`;
+      }
+    }
+
+    function renderArticle(a) {
+      // Configure marked
+      marked.setOptions({ breaks: true, gfm: true });
+
+      const rawHtml = marked.parse(a.content || '');
+      const safeHtml = DOMPurify.sanitize(rawHtml, { ADD_TAGS: ['table','thead','tbody','tr','th','td'] });
+
+      const updatedDate = fmtDate(a.updated_at);
+      const createdDate = fmtDate(a.created_at);
+
+      const relatedHtml = (a.relatedArticles || []).length > 0 ? `
+        <div class="sidebar-card">
+          <div class="sidebar-heading">Related Articles</div>
+          ${a.relatedArticles.map(r => `
+            <a class="related-item" href="/article?id=${r.id}">
+              ${r.category ? `<div class="related-cat">${escHtml(r.category)}</div>` : ''}
+              <div class="related-title">${escHtml(r.title)}</div>
+            </a>
+          `).join('')}
+        </div>
+      ` : '';
+
+      const tagsHtml = (a.tags || []).length > 0
+        ? `<div class="article-tags-row">${a.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>`
+        : '';
+
+      document.getElementById('pageContent').innerHTML = `
+        <div class="article-layout">
+          <div>
+            <a class="article-back" href="/">← Back to Search</a>
+            <div class="article-main-card">
+              ${a.category ? `<div class="article-category-badge">${escHtml(a.category)}</div>` : ''}
+              <h1 class="article-title">${escHtml(a.title)}</h1>
+              <div class="article-meta-row">
+                ${a.author_name ? `<span class="article-meta-item">✍ ${escHtml(a.author_name)}</span>` : ''}
+                <span class="article-meta-item">📅 Updated ${updatedDate}</span>
+                ${createdDate !== updatedDate ? `<span class="article-meta-item" style="color:var(--gray-400)">Created ${createdDate}</span>` : ''}
+              </div>
+              ${tagsHtml}
+              <div class="article-content" id="articleBody">${safeHtml}</div>
+            </div>
+          </div>
+
+          <div class="article-sidebar">
+            <div class="sidebar-card">
+              <div class="sidebar-heading">In This Article</div>
+              <div id="tocContent" style="font-size:13px;color:var(--text-muted)">Loading…</div>
+            </div>
+            ${relatedHtml}
+          </div>
+        </div>
+      `;
+
+      buildToc();
+    }
+
+    function buildToc() {
+      const headings = document.querySelectorAll('.article-content h1, .article-content h2, .article-content h3');
+      const toc = document.getElementById('tocContent');
+
+      if (headings.length === 0) {
+        toc.textContent = 'No sections';
+        return;
+      }
+
+      const items = Array.from(headings).map((h, i) => {
+        const anchor = `section-${i}`;
+        h.id = anchor;
+        const indent = h.tagName === 'H1' ? 0 : h.tagName === 'H2' ? 0 : 12;
+        return `<a href="#${anchor}" style="display:block;padding:4px 0 4px ${indent}px;color:var(--text-muted);text-decoration:none;font-size:13px;line-height:1.4;border-left:2px solid transparent;padding-left:${indent + 10}px;transition:all 0.15s"
+          onmouseover="this.style.color='var(--orange)';this.style.borderLeftColor='var(--orange)'"
+          onmouseout="this.style.color='var(--text-muted)';this.style.borderLeftColor='transparent'"
+        >${escHtml(h.textContent)}</a>`;
+      });
+
+      toc.innerHTML = items.join('');
+    }
+
+    async function logout() {
+      await fetch('/auth/logout', { method: 'POST' });
+      location.href = '/login.html';
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
+      catch { return ''; }
+    }
+
+    init();
+  </script>
+</body>
+</html>

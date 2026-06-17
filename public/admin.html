@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — RawTalent Knowledge Base</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="nav-brand" href="/">
+      <span class="nav-logo">Raw<span>Talent</span></span>
+      <span class="nav-tag">Admin</span>
+    </a>
+    <div class="nav-actions">
+      <button class="nav-btn ghost" onclick="location.href='/'">← Knowledge Base</button>
+      <div class="nav-user">
+        <div class="nav-avatar" id="navAvatar">J</div>
+      </div>
+      <button class="nav-btn ghost" onclick="logout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="admin-nav-section">
+        <div class="admin-nav-label">Overview</div>
+        <div class="admin-nav-item active" onclick="showSection('dashboard', this)">
+          <span class="admin-nav-icon">📊</span> Dashboard
+        </div>
+      </div>
+      <div class="admin-nav-section">
+        <div class="admin-nav-label">Content</div>
+        <div class="admin-nav-item" onclick="showSection('articles', this)">
+          <span class="admin-nav-icon">📄</span> Articles
+        </div>
+        <div class="admin-nav-item" onclick="showSection('new-article', this)">
+          <span class="admin-nav-icon">✏️</span> New Article
+        </div>
+      </div>
+      <div class="admin-nav-section">
+        <div class="admin-nav-label">Access</div>
+        <div class="admin-nav-item" onclick="showSection('users', this)">
+          <span class="admin-nav-icon">👥</span> Users
+        </div>
+      </div>
+      <div class="admin-nav-section">
+        <div class="admin-nav-label">System</div>
+        <div class="admin-nav-item" onclick="triggerSync()">
+          <span class="admin-nav-icon">🔄</span> Sync from Drive
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-content">
+
+      <!-- Dashboard -->
+      <div class="admin-section active" id="section-dashboard">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title">Dashboard</div>
+            <div class="admin-page-sub">Welcome back, <span id="adminName">Joy</span></div>
+          </div>
+        </div>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-num" id="stat-articles">—</div><div class="stat-label">Published Articles</div></div>
+          <div class="stat-card"><div class="stat-icon">📝</div><div class="stat-num" id="stat-drafts">—</div><div class="stat-label">Drafts</div></div>
+          <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-num" id="stat-users">—</div><div class="stat-label">Active Users</div></div>
+          <div class="stat-card"><div class="stat-icon">🗂</div><div class="stat-num" id="stat-cats">—</div><div class="stat-label">Categories</div></div>
+        </div>
+        <div style="background:white;border-radius:var(--radius-lg);padding:28px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm)">
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px;color:var(--navy)">Quick Actions</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+            <button class="btn-add" onclick="showSection('new-article', document.querySelector('[onclick*=new-article]'))">✏️ Write New Article</button>
+            <button class="btn-secondary" onclick="showSection('users', document.querySelector('[onclick*=users]'))">👥 Manage Users</button>
+            <button class="btn-secondary" onclick="triggerSync()">🔄 Sync from Google Drive</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Articles List -->
+      <div class="admin-section" id="section-articles">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title">Articles</div>
+            <div class="admin-page-sub">Manage your knowledge base content</div>
+          </div>
+          <button class="btn-add" onclick="showSection('new-article', document.querySelector('[onclick*=new-article]'))">+ New Article</button>
+        </div>
+        <div class="admin-table-card">
+          <div class="admin-table-header">
+            <input type="text" class="admin-search-input" placeholder="Filter articles…" oninput="filterArticles(this.value)">
+            <span id="articleCount" style="font-size:13px;color:var(--text-muted)"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="articlesTableBody">
+                <tr><td colspan="5"><div class="loading-spinner"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- New / Edit Article -->
+      <div class="admin-section" id="section-new-article">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title" id="articleFormTitle">New Article</div>
+            <div class="admin-page-sub">Create a new knowledge base article</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-secondary" onclick="cancelEdit()">Cancel</button>
+            <button class="btn-add" onclick="saveArticle()">💾 Save Article</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start">
+          <div>
+            <div style="background:white;border-radius:var(--radius-lg);padding:28px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm);margin-bottom:16px">
+              <input type="hidden" id="editingArticleId">
+              <div class="form-group-modal" style="margin-bottom:20px">
+                <label class="form-label-modal">Title <span style="color:#ef4444">*</span></label>
+                <input type="text" id="articleTitle" class="form-control" placeholder="Give your article a clear, descriptive title">
+              </div>
+              <div class="form-group-modal" style="margin-bottom:20px">
+                <label class="form-label-modal">Summary <span class="optional">(shown in search results)</span></label>
+                <textarea id="articleSummary" class="form-control textarea" placeholder="Write a short summary that helps people find this article in search…" style="min-height:70px"></textarea>
+              </div>
+              <div class="form-group-modal">
+                <label class="form-label-modal">Content <span style="color:#ef4444">*</span>
+                  <span style="font-weight:400;color:var(--gray-400);margin-left:8px;font-size:12px">Markdown supported — use ## for headings, **bold**, *italic*, - lists, | tables |</span>
+                </label>
+                <textarea id="articleContent" class="form-control content-area" placeholder="Write your article content here using Markdown…
+
+## Example Heading
+
+Your content goes here. You can use:
+- **Bold text** for emphasis
+- *Italic text* for terms
+- [Link text](url) for links
+- ## Subheadings to organise sections
+- > Blockquotes for important notes
+- `code` for inline code
+
+| Column 1 | Column 2 |
+|----------|----------|
+| Data     | Data     |
+"></textarea>
+              </div>
+            </div>
+
+            <!-- Preview -->
+            <div style="background:white;border-radius:var(--radius-lg);border:1px solid var(--gray-200);box-shadow:var(--shadow-sm)">
+              <div style="padding:14px 20px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between">
+                <span style="font-weight:700;font-size:14px;color:var(--navy)">Preview</span>
+                <button onclick="refreshPreview()" class="btn-secondary" style="padding:5px 12px;font-size:12px">↻ Refresh</button>
+              </div>
+              <div class="article-content" id="articlePreview" style="padding:24px;min-height:100px;color:var(--text-muted);font-size:14px;font-style:italic">
+                Start typing to see a preview…
+              </div>
+            </div>
+          </div>
+
+          <!-- Sidebar Settings -->
+          <div>
+            <div style="background:white;border-radius:var(--radius-lg);padding:22px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm);margin-bottom:16px">
+              <div style="font-weight:700;font-size:13px;color:var(--navy);margin-bottom:16px;letter-spacing:.3px">Article Settings</div>
+              <div class="form-group-modal">
+                <label class="form-label-modal">Category</label>
+                <input type="text" id="articleCategory" class="form-control" placeholder="e.g. Onboarding, HR, Policies" list="categoryList">
+                <datalist id="categoryList"></datalist>
+              </div>
+              <div class="form-group-modal">
+                <label class="form-label-modal">Tags <span class="optional">(comma-separated)</span></label>
+                <input type="text" id="articleTags" class="form-control" placeholder="e.g. contracts, leave, benefits">
+              </div>
+              <div class="form-group-modal">
+                <label class="form-label-modal">Related Article IDs <span class="optional">(comma-separated)</span></label>
+                <textarea id="articleRelated" class="form-control" style="min-height:60px" placeholder="Paste article IDs to link related articles…"></textarea>
+                <div class="form-hint">Tip: copy IDs from the Articles table</div>
+              </div>
+              <div class="checkbox-row" style="margin-top:16px">
+                <input type="checkbox" id="articlePublished" checked>
+                <label for="articlePublished">Published (visible to all users)</label>
+              </div>
+            </div>
+
+            <!-- Related article picker -->
+            <div style="background:white;border-radius:var(--radius-lg);padding:22px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm)">
+              <div style="font-weight:700;font-size:13px;color:var(--navy);margin-bottom:12px">Link Related Articles</div>
+              <input type="text" class="form-control" placeholder="Search articles…" oninput="searchRelated(this.value)" style="margin-bottom:10px">
+              <div id="relatedPickerList" style="max-height:200px;overflow-y:auto;font-size:13px;color:var(--text-muted)">
+                Type to search…
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="admin-section" id="section-users">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title">Users</div>
+            <div class="admin-page-sub">Manage who can access the knowledge base</div>
+          </div>
+          <button class="btn-add" onclick="openUserModal()">+ Add User</button>
+        </div>
+        <div class="admin-table-card">
+          <div class="admin-table-header">
+            <input type="text" class="admin-search-input" placeholder="Filter users…" oninput="filterUsers(this.value)">
+            <span id="userCount" style="font-size:13px;color:var(--text-muted)"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Last Login</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <tr><td colspan="6"><div class="loading-spinner"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- User Modal -->
+  <div class="modal-overlay" id="userModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="userModalTitle">Add User</div>
+        <button class="modal-close" onclick="closeUserModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editUserId">
+        <div class="form-row">
+          <div class="form-group-modal">
+            <label class="form-label-modal">Full Name <span style="color:#ef4444">*</span></label>
+            <input type="text" id="userName" class="form-control" placeholder="First Last">
+          </div>
+          <div class="form-group-modal">
+            <label class="form-label-modal">Role</label>
+            <select id="userRole" class="form-control">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group-modal">
+          <label class="form-label-modal">Email Address <span style="color:#ef4444">*</span></label>
+          <input type="email" id="userEmail" class="form-control" placeholder="name@rawtalent.com.au">
+          <div class="form-hint">Must be a @rawtalent.com.au address</div>
+        </div>
+        <div class="form-group-modal">
+          <label class="form-label-modal">Password <span id="passwordRequired" class="optional">(leave blank to keep current)</span></label>
+          <input type="password" id="userPassword" class="form-control" placeholder="Minimum 8 characters" autocomplete="new-password">
+          <div class="form-hint" id="passwordHint">Set an initial password so the user can sign in. They can use Google Sign-In instead if configured.</div>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="userActive" checked>
+          <label for="userActive">Account active (user can sign in)</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeUserModal()">Cancel</button>
+        <button class="btn-add" onclick="saveUser()">Save User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title" id="confirmTitle">Confirm Delete</div>
+        <button class="modal-close" onclick="closeConfirm()">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMsg" style="color:var(--text-muted);font-size:14px"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeConfirm()">Cancel</button>
+        <button class="action-btn delete" style="padding:9px 18px;font-size:13px" id="confirmOkBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
+  <script>
+    let allArticles = [];
+    let allUsers = [];
+    let editingArticleId = null;
+    let confirmCallback = null;
+
+    // ── Init ──────────────────────────────────────────────────────
+    async function init() {
+      try {
+        const me = await fetch('/auth/me').then(r => r.json());
+        if (me.error || me.role !== 'admin') { location.href = '/'; return; }
+        document.getElementById('navAvatar').textContent = (me.name || me.email)[0].toUpperCase();
+        document.getElementById('adminName').textContent = me.name || me.email.split('@')[0];
+      } catch { location.href = '/login.html'; return; }
+
+      loadStats();
+      loadArticles();
+      loadUsers();
+      loadCategoriesForDatalist();
+    }
+
+    // ── Navigation ────────────────────────────────────────────────
+    function showSection(id, el) {
+      document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.admin-nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById(`section-${id}`).classList.add('active');
+      if (el) el.classList.add('active');
+      if (id === 'new-article' && !editingArticleId) resetArticleForm();
+    }
+
+    // ── Stats ─────────────────────────────────────────────────────
+    async function loadStats() {
+      try {
+        const s = await fetch('/api/admin/stats').then(r => r.json());
+        document.getElementById('stat-articles').textContent = s.totalArticles;
+        document.getElementById('stat-drafts').textContent = s.draftArticles;
+        document.getElementById('stat-users').textContent = s.totalUsers;
+        document.getElementById('stat-cats').textContent = s.categories;
+      } catch {}
+    }
+
+    // ── Articles ──────────────────────────────────────────────────
+    async function loadArticles() {
+      try {
+        allArticles = await fetch('/api/admin/articles').then(r => r.json());
+        renderArticlesTable(allArticles);
+      } catch { toast('Failed to load articles', 'error'); }
+    }
+
+    function renderArticlesTable(articles) {
+      const tbody = document.getElementById('articlesTableBody');
+      document.getElementById('articleCount').textContent = `${articles.length} article${articles.length !== 1 ? 's' : ''}`;
+      if (articles.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">No articles yet. <a href="#" onclick="showSection('new-article',null);return false" style="color:var(--orange)">Create your first article →</a></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = articles.map(a => `
+        <tr>
+          <td>
+            <div style="font-weight:600;color:var(--text);margin-bottom:2px">${escHtml(a.title)}</div>
+            <div style="font-size:11px;color:var(--gray-400);font-family:monospace">${a.id}</div>
+          </td>
+          <td>${a.category ? `<span style="font-size:12px;color:var(--orange);font-weight:600">${escHtml(a.category)}</span>` : '<span style="color:var(--gray-400);font-size:12px">—</span>'}</td>
+          <td><span class="badge ${a.published ? 'badge-published' : 'badge-draft'}">${a.published ? 'Published' : 'Draft'}</span></td>
+          <td style="font-size:13px;color:var(--text-muted)">${fmtDate(a.updated_at)}</td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <a class="action-btn view" href="/article?id=${a.id}" target="_blank">View</a>
+              <button class="action-btn edit" onclick="editArticle('${a.id}')">Edit</button>
+              <button class="action-btn delete" onclick="deleteArticleConfirm('${a.id}','${escHtml(a.title)}')">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterArticles(q) {
+      const filtered = q ? allArticles.filter(a =>
+        a.title.toLowerCase().includes(q.toLowerCase()) ||
+        (a.category || '').toLowerCase().includes(q.toLowerCase())
+      ) : allArticles;
+      renderArticlesTable(filtered);
+    }
+
+    async function editArticle(id) {
+      try {
+        const a = await fetch(`/api/admin/articles/${id}`).then(r => r.json());
+        editingArticleId = id;
+        document.getElementById('articleFormTitle').textContent = 'Edit Article';
+        document.getElementById('editingArticleId').value = id;
+        document.getElementById('articleTitle').value = a.title || '';
+        document.getElementById('articleSummary').value = a.summary || '';
+        document.getElementById('articleContent').value = a.content || '';
+        document.getElementById('articleCategory').value = a.category || '';
+        document.getElementById('articleTags').value = (a.tags || []).join(', ');
+        document.getElementById('articleRelated').value = (a.related_ids || []).join(', ');
+        document.getElementById('articlePublished').checked = !!a.published;
+        refreshPreview();
+        showSection('new-article', document.querySelector('[onclick*="new-article"]'));
+      } catch { toast('Failed to load article', 'error'); }
+    }
+
+    function cancelEdit() {
+      editingArticleId = null;
+      resetArticleForm();
+      showSection('articles', document.querySelector('[onclick*="\'articles\'"]'));
+    }
+
+    function resetArticleForm() {
+      editingArticleId = null;
+      document.getElementById('articleFormTitle').textContent = 'New Article';
+      document.getElementById('editingArticleId').value = '';
+      document.getElementById('articleTitle').value = '';
+      document.getElementById('articleSummary').value = '';
+      document.getElementById('articleContent').value = '';
+      document.getElementById('articleCategory').value = '';
+      document.getElementById('articleTags').value = '';
+      document.getElementById('articleRelated').value = '';
+      document.getElementById('articlePublished').checked = true;
+      document.getElementById('articlePreview').innerHTML = '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
+    }
+
+    function refreshPreview() {
+      const content = document.getElementById('articleContent').value;
+      if (!content.trim()) {
+        document.getElementById('articlePreview').innerHTML = '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
+        return;
+      }
+      marked.setOptions({ breaks: true, gfm: true });
+      const html = DOMPurify.sanitize(marked.parse(content));
+      document.getElementById('articlePreview').innerHTML = html;
+    }
+
+    // Live preview with debounce
+    let previewTimeout;
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('articleContent').addEventListener('input', () => {
+        clearTimeout(previewTimeout);
+        previewTimeout = setTimeout(refreshPreview, 600);
+      });
+    });
+
+    async function saveArticle() {
+      const title = document.getElementById('articleTitle').value.trim();
+      const content = document.getElementById('articleContent').value.trim();
+      if (!title) { toast('Please enter a title', 'error'); return; }
+      if (!content) { toast('Please enter some content', 'error'); return; }
+
+      const tagsRaw = document.getElementById('articleTags').value;
+      const relatedRaw = document.getElementById('articleRelated').value;
+
+      const payload = {
+        title,
+        summary: document.getElementById('articleSummary').value.trim(),
+        content,
+        category: document.getElementById('articleCategory').value.trim(),
+        tags: tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [],
+        relatedIds: relatedRaw ? relatedRaw.split(',').map(t => t.trim()).filter(Boolean) : [],
+        published: document.getElementById('articlePublished').checked
+      };
+
+      const id = editingArticleId;
+      const url = id ? `/api/admin/articles/${id}` : '/api/admin/articles';
+      const method = id ? 'PUT' : 'POST';
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) { toast(data.error || 'Save failed', 'error'); return; }
+        toast(id ? 'Article updated!' : 'Article created!', 'success');
+        editingArticleId = null;
+        resetArticleForm();
+        await loadArticles();
+        await loadStats();
+        showSection('articles', document.querySelector('[onclick*="\'articles\'"]'));
+      } catch { toast('Network error', 'error'); }
+    }
+
+    function deleteArticleConfirm(id, title) {
+      document.getElementById('confirmTitle').textContent = 'Delete Article';
+      document.getElementById('confirmMsg').textContent = `Are you sure you want to delete "${title}"? This cannot be undone.`;
+      confirmCallback = () => doDeleteArticle(id);
+      document.getElementById('confirmOkBtn').onclick = () => { confirmCallback(); closeConfirm(); };
+      document.getElementById('confirmModal').classList.add('open');
+    }
+
+    async function doDeleteArticle(id) {
+      try {
+        const res = await fetch(`/api/admin/articles/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast('Article deleted', 'success');
+          await loadArticles();
+          await loadStats();
+        } else {
+          const d = await res.json();
+          toast(d.error || 'Delete failed', 'error');
+        }
+      } catch { toast('Network error', 'error'); }
+    }
+
+    async function searchRelated(q) {
+      const list = document.getElementById('relatedPickerList');
+      if (!q.trim()) { list.innerHTML = '<span style="color:var(--text-muted)">Type to search…</span>'; return; }
+      const matches = allArticles.filter(a =>
+        a.title.toLowerCase().includes(q.toLowerCase()) &&
+        a.id !== editingArticleId
+      ).slice(0, 8);
+      if (matches.length === 0) { list.innerHTML = '<span style="color:var(--text-muted)">No matches</span>'; return; }
+      list.innerHTML = matches.map(a => `
+        <div style="padding:6px 0;border-bottom:1px solid var(--gray-100);cursor:pointer" onclick="addRelated('${a.id}','${escHtml(a.title)}')">
+          <div style="font-weight:600;color:var(--text)">${escHtml(a.title)}</div>
+          ${a.category ? `<div style="font-size:11px;color:var(--orange)">${escHtml(a.category)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function addRelated(id, title) {
+      const field = document.getElementById('articleRelated');
+      const current = field.value.trim();
+      if (current.includes(id)) { toast('Already linked', 'error'); return; }
+      field.value = current ? `${current}, ${id}` : id;
+      toast(`Linked: ${title}`, 'success');
+    }
+
+    async function loadCategoriesForDatalist() {
+      try {
+        const cats = await fetch('/api/articles/categories').then(r => r.json());
+        const dl = document.getElementById('categoryList');
+        dl.innerHTML = cats.map(c => `<option value="${escHtml(c.category)}">`).join('');
+      } catch {}
+    }
+
+    // ── Users ─────────────────────────────────────────────────────
+    async function loadUsers() {
+      try {
+        allUsers = await fetch('/api/admin/users').then(r => r.json());
+        renderUsersTable(allUsers);
+      } catch { toast('Failed to load users', 'error'); }
+    }
+
+    function renderUsersTable(users) {
+      const tbody = document.getElementById('usersTableBody');
+      document.getElementById('userCount').textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+      if (users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">No users yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td style="font-weight:600">${escHtml(u.name || '—')}</td>
+          <td style="font-size:13px">${escHtml(u.email)}</td>
+          <td><span class="badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role}</span></td>
+          <td><span class="badge ${u.active ? 'badge-published' : 'badge-draft'}">${u.active ? 'Active' : 'Disabled'}</span></td>
+          <td style="font-size:13px;color:var(--text-muted)">${u.last_login ? fmtDate(u.last_login) : 'Never'}</td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="action-btn edit" onclick="openUserModal(${u.id})">Edit</button>
+              <button class="action-btn delete" onclick="deleteUserConfirm(${u.id},'${escHtml(u.name || u.email)}')">Remove</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterUsers(q) {
+      const filtered = q ? allUsers.filter(u =>
+        (u.name || '').toLowerCase().includes(q.toLowerCase()) ||
+        u.email.toLowerCase().includes(q.toLowerCase())
+      ) : allUsers;
+      renderUsersTable(filtered);
+    }
+
+    function openUserModal(id) {
+      document.getElementById('editUserId').value = id || '';
+      document.getElementById('userModalTitle').textContent = id ? 'Edit User' : 'Add User';
+      document.getElementById('passwordRequired').textContent = id ? '(leave blank to keep current)' : '(required)';
+      document.getElementById('passwordHint').style.display = id ? 'none' : 'block';
+
+      if (id) {
+        const u = allUsers.find(x => x.id === id);
+        if (u) {
+          document.getElementById('userName').value = u.name || '';
+          document.getElementById('userEmail').value = u.email;
+          document.getElementById('userEmail').disabled = true;
+          document.getElementById('userRole').value = u.role;
+          document.getElementById('userActive').checked = !!u.active;
+        }
+      } else {
+        document.getElementById('userName').value = '';
+        document.getElementById('userEmail').value = '';
+        document.getElementById('userEmail').disabled = false;
+        document.getElementById('userRole').value = 'user';
+        document.getElementById('userActive').checked = true;
+      }
+      document.getElementById('userPassword').value = '';
+      document.getElementById('userModal').classList.add('open');
+    }
+
+    function closeUserModal() {
+      document.getElementById('userModal').classList.remove('open');
+      document.getElementById('userEmail').disabled = false;
+    }
+
+    async function saveUser() {
+      const id = document.getElementById('editUserId').value;
+      const name = document.getElementById('userName').value.trim();
+      const email = document.getElementById('userEmail').value.trim();
+      const password = document.getElementById('userPassword').value;
+      const role = document.getElementById('userRole').value;
+      const active = document.getElementById('userActive').checked;
+
+      if (!name) { toast('Name is required', 'error'); return; }
+      if (!id && !email) { toast('Email is required', 'error'); return; }
+      if (!id && !password) { toast('Password is required for new users', 'error'); return; }
+
+      try {
+        const url = id ? `/api/admin/users/${id}` : '/api/admin/users';
+        const method = id ? 'PUT' : 'POST';
+        const body = id
+          ? { name, role, active, ...(password ? { password } : {}) }
+          : { email, name, password, role };
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) { toast(data.error || 'Save failed', 'error'); return; }
+        toast(id ? 'User updated!' : 'User added!', 'success');
+        closeUserModal();
+        await loadUsers();
+        await loadStats();
+      } catch { toast('Network error', 'error'); }
+    }
+
+    function deleteUserConfirm(id, name) {
+      document.getElementById('confirmTitle').textContent = 'Remove User';
+      document.getElementById('confirmMsg').textContent = `Remove "${name}" from the knowledge base? They will no longer be able to sign in.`;
+      document.getElementById('confirmOkBtn').onclick = async () => {
+        try {
+          const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+          const d = await res.json();
+          if (res.ok) { toast('User removed', 'success'); await loadUsers(); await loadStats(); }
+          else toast(d.error || 'Delete failed', 'error');
+        } catch { toast('Network error', 'error'); }
+        closeConfirm();
+      };
+      document.getElementById('confirmModal').classList.add('open');
+    }
+
+    function closeConfirm() {
+      document.getElementById('confirmModal').classList.remove('open');
+    }
+
+    // Close modals on overlay click
+    document.getElementById('userModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeUserModal(); });
+    document.getElementById('confirmModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeConfirm(); });
+
+    // ── Drive Sync ────────────────────────────────────────────────
+    async function triggerSync() {
+      toast('Syncing from Google Drive…');
+      try {
+        const res = await fetch('/api/admin/sync', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) { toast(data.message, 'success'); await loadArticles(); await loadStats(); }
+        else toast(data.error || 'Sync failed', 'error');
+      } catch { toast('Sync failed', 'error'); }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+    function toast(msg, type = '') {
+      const tc = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.textContent = msg;
+      tc.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
+      catch { return iso; }
+    }
+
+    async function logout() {
+      await fetch('/auth/logout', { method: 'POST' });
+      location.href = '/login.html';
+    }
+
+    init();
+  </script>
+</body>
+</html>

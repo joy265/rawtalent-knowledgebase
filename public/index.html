@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RawTalent Knowledge Base</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="nav-brand" href="/">
+      <span class="nav-logo">Raw<span>Talent</span></span>
+      <span class="nav-tag">Knowledge Base</span>
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">
+        <div class="nav-avatar" id="navAvatar">?</div>
+        <span id="navName" style="display:none"></span>
+      </div>
+      <button class="nav-btn ghost" onclick="logout()">Sign Out</button>
+      <button class="nav-btn admin-btn" id="adminNavBtn" onclick="location.href='/admin'" style="display:none">
+        ⚙ Admin
+      </button>
+    </div>
+  </nav>
+
+  <div class="search-hero">
+    <h1 class="search-hero-title">How can we help you<span>?</span></h1>
+    <p class="search-hero-sub">Search the RawTalent knowledge base for answers, guides, and resources</p>
+    <div class="search-box-wrap">
+      <input
+        type="text"
+        id="searchInput"
+        class="search-box"
+        placeholder="Search articles, topics, or keywords…"
+        autocomplete="off"
+        autofocus
+      >
+      <span class="search-icon">⌕</span>
+    </div>
+  </div>
+
+  <div class="categories-bar" id="categoriesBar">
+    <div class="cat-chip active" data-cat="">All Topics</div>
+  </div>
+
+  <div class="results-area">
+    <div id="resultsMeta" class="results-meta" style="display:none"></div>
+    <div id="resultsList">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        Loading…
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    let currentCategory = '';
+    let searchTimeout;
+    let allCategories = [];
+
+    async function init() {
+      try {
+        const me = await fetch('/auth/me').then(r => r.json());
+        if (me.error) { location.href = '/login.html'; return; }
+        document.getElementById('navAvatar').textContent = (me.name || me.email)[0].toUpperCase();
+        document.getElementById('navName').textContent = me.name || me.email.split('@')[0];
+        if (me.role === 'admin') document.getElementById('adminNavBtn').style.display = 'inline-flex';
+      } catch { location.href = '/login.html'; return; }
+
+      loadCategories();
+      loadResults();
+    }
+
+    async function loadCategories() {
+      try {
+        const cats = await fetch('/api/articles/categories').then(r => r.json());
+        allCategories = cats;
+        const bar = document.getElementById('categoriesBar');
+        cats.forEach(c => {
+          const chip = document.createElement('div');
+          chip.className = 'cat-chip';
+          chip.dataset.cat = c.category;
+          chip.textContent = `${c.category} (${c.count})`;
+          chip.addEventListener('click', () => selectCategory(c.category, chip));
+          bar.appendChild(chip);
+        });
+      } catch {}
+    }
+
+    function selectCategory(cat, el) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      loadResults();
+    }
+
+    async function loadResults() {
+      const q = document.getElementById('searchInput').value.trim();
+      const meta = document.getElementById('resultsMeta');
+      const list = document.getElementById('resultsList');
+
+      list.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+      meta.style.display = 'none';
+
+      try {
+        const params = new URLSearchParams({ limit: 50 });
+        if (q) params.set('q', q);
+        if (currentCategory) params.set('category', currentCategory);
+
+        const results = await fetch(`/api/articles/search?${params}`).then(r => r.json());
+
+        if (results.error) { location.href = '/login.html'; return; }
+
+        if (results.length === 0) {
+          list.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <div class="empty-title">${q ? `No results for "${q}"` : 'No articles yet'}</div>
+              <p>${q ? 'Try different keywords or browse by category.' : 'Check back soon — content is being added.'}</p>
+            </div>`;
+          return;
+        }
+
+        if (q) {
+          meta.style.display = 'block';
+          meta.innerHTML = `About <strong>${results.length}</strong> result${results.length !== 1 ? 's' : ''} for <strong>"${escHtml(q)}"</strong>`;
+        }
+
+        list.innerHTML = results.map(a => `
+          <a class="result-card" href="/article?id=${a.id}">
+            ${a.category ? `<div class="result-category">${escHtml(a.category)}</div>` : ''}
+            <div class="result-title">${escHtml(a.title)}</div>
+            ${a.summary ? `<div class="result-summary">${escHtml(a.summary)}</div>` : ''}
+            <div class="result-footer">
+              <div class="result-tags">
+                ${(a.tags || []).slice(0, 3).map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}
+              </div>
+              <span class="result-date">${fmtDate(a.updated_at)}</span>
+            </div>
+          </a>
+        `).join('');
+      } catch (err) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Something went wrong</div><p>Please refresh and try again.</p></div>';
+      }
+    }
+
+    document.getElementById('searchInput').addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(loadResults, 280);
+    });
+
+    document.getElementById('searchInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { clearTimeout(searchTimeout); loadResults(); }
+    });
+
+    async function logout() {
+      await fetch('/auth/logout', { method: 'POST' });
+      location.href = '/login.html';
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      try {
+        return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+      } catch { return ''; }
+    }
+
+    init();
+  </script>
+</body>
+</html>
