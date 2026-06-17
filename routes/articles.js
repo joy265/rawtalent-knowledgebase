@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDb } = require('../db/database');
 const { requireAuth } = require('../middleware/authMiddleware');
 
+// Search articles
 router.get('/search', requireAuth, (req, res) => {
   const { q, category, limit = 20 } = req.query;
   const db = getDb();
@@ -28,7 +29,6 @@ router.get('/search', requireAuth, (req, res) => {
         LIMIT ?
       `).all(...[term, ...(category ? [category] : []), parseInt(limit)]);
     } catch {
-      // Fallback to LIKE search if FTS query parsing fails
       articles = db.prepare(`
         SELECT id, title, summary, category, tags, created_at, updated_at
         FROM articles
@@ -53,6 +53,7 @@ router.get('/search', requireAuth, (req, res) => {
   res.json(articles.map(a => ({ ...a, tags: JSON.parse(a.tags || '[]') })));
 });
 
+// Get categories
 router.get('/categories', requireAuth, (req, res) => {
   const cats = getDb().prepare(`
     SELECT category, COUNT(*) as count
@@ -62,6 +63,13 @@ router.get('/categories', requireAuth, (req, res) => {
   res.json(cats);
 });
 
+// Get all glossary terms (for frontend highlighting)
+router.get('/glossary', requireAuth, (req, res) => {
+  const terms = getDb().prepare('SELECT term, definition FROM glossary ORDER BY LENGTH(term) DESC').all();
+  res.json(terms);
+});
+
+// Get single article + auto-related
 router.get('/:id', requireAuth, (req, res) => {
   const db = getDb();
   const article = db.prepare(`
@@ -74,19 +82,68 @@ router.get('/:id', requireAuth, (req, res) => {
   if (!article) return res.status(404).json({ error: 'Article not found' });
 
   article.tags = JSON.parse(article.tags || '[]');
-  const relatedIds = JSON.parse(article.related_ids || '[]');
 
-  if (relatedIds.length > 0) {
-    const placeholders = relatedIds.map(() => '?').join(',');
-    article.relatedArticles = db.prepare(`
-      SELECT id, title, summary, category
-      FROM articles WHERE id IN (${placeholders}) AND published = 1
-    `).all(...relatedIds);
-  } else {
-    article.relatedArticles = [];
-  }
+  // Auto-related: find similar articles by category, tags, and title keywords
+  article.relatedArticles = findRelatedArticles(db, article);
 
   res.json(article);
 });
+
+function findRelatedArticles(db, article) {
+  const allArticles = db.prepare(`
+    SELECT id, title, summary, category, tags
+    FROM articles
+    WHERE published = 1 AND id != ?
+  `).all(article.id);
+
+  if (allArticles.length === 0) return [];
+
+  const currentTags = article.tags || [];
+  const currentCategory = (article.category || '').toLowerCase();
+  const currentWords = extractKeywords(article.title + ' ' + (article.summary || ''));
+
+  const scored = allArticles.map(a => {
+    const aTags = JSON.parse(a.tags || '[]');
+    const aCategory = (a.category || '').toLowerCase();
+    const aWords = extractKeywords(a.title + ' ' + (a.summary || ''));
+
+    let score = 0;
+
+    // Same category = strong signal
+    if (currentCategory && aCategory === currentCategory) score += 4;
+
+    // Shared tags
+    const sharedTags = currentTags.filter(t =>
+      aTags.map(x => x.toLowerCase()).includes(t.toLowerCase())
+    );
+    score += sharedTags.length * 3;
+
+    // Shared title/summary keywords
+    const sharedWords = currentWords.filter(w => aWords.includes(w));
+    score += sharedWords.length;
+
+    return { ...a, score };
+  });
+
+  return scored
+    .filter(a => a.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(({ id, title, summary, category }) => ({ id, title, summary, category }));
+}
+
+function extractKeywords(text) {
+  const stopWords = new Set([
+    'the','a','an','and','or','but','in','on','at','to','for','of','with',
+    'how','what','when','where','why','is','are','was','were','be','been',
+    'has','have','had','do','does','did','will','would','could','should',
+    'this','that','these','those','it','its','from','by','as','if','not'
+  ]);
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !stopWords.has(w));
+}
 
 module.exports = router;

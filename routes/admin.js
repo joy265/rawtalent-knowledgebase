@@ -161,4 +161,37 @@ router.post('/sync', async (req, res) => {
   }
 });
 
+// ── Glossary ──────────────────────────────────────────────────────
+router.get('/glossary', (req, res) => {
+  const terms = getDb().prepare('SELECT * FROM glossary ORDER BY term ASC').all();
+  res.json(terms);
+});
+
+router.post('/glossary', (req, res) => {
+  const { term, definition } = req.body;
+  if (!term || !definition) return res.status(400).json({ error: 'Term and definition are required' });
+  try {
+    getDb().prepare('INSERT INTO glossary (term, definition) VALUES (?, ?)').run(term.trim(), definition.trim());
+    res.json({ success: true });
+  } catch {
+    res.status(409).json({ error: 'That term already exists' });
+  }
+});
+
+router.put('/glossary/:id', (req, res) => {
+  const { term, definition } = req.body;
+  if (!term || !definition) return res.status(400).json({ error: 'Term and definition are required' });
+  const db = getDb();
+  const existing = db.prepare('SELECT id FROM glossary WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Term not found' });
+  db.prepare("UPDATE glossary SET term=?, definition=?, updated_at=datetime('now') WHERE id=?")
+    .run(term.trim(), definition.trim(), req.params.id);
+  res.json({ success: true });
+});
+
+router.delete('/glossary/:id', (req, res) => {
+  getDb().prepare('DELETE FROM glossary WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 module.exports = router;
