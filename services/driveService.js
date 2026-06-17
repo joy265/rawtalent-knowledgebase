@@ -82,7 +82,7 @@ async function syncFromDrive() {
       const article = resp.data;
       if (!article.id || !article.title) continue;
 
-      const existing = db.prepare('SELECT id FROM articles WHERE id = ?').get(article.id);
+      const existing = db.prepare('SELECT id, updated_at FROM articles WHERE id = ?').get(article.id);
       if (!existing) {
         db.prepare(`
           INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
@@ -95,6 +95,23 @@ async function syncFromDrive() {
           file.id, article.createdAt || new Date().toISOString(), article.updatedAt || new Date().toISOString()
         );
         synced++;
+      } else {
+        // Update if Drive version is newer
+        const driveUpdated = article.updatedAt || '';
+        const dbUpdated = existing.updated_at || '';
+        if (driveUpdated > dbUpdated) {
+          db.prepare(`
+            UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?,
+              published=?, drive_file_id=?, updated_at=? WHERE id=?
+          `).run(
+            article.title, article.summary || '', article.content || '',
+            article.category || '', JSON.stringify(article.tags || []),
+            JSON.stringify(article.relatedArticleIds || []),
+            article.published !== false ? 1 : 0, file.id,
+            article.updatedAt || new Date().toISOString(), article.id
+          );
+          synced++;
+        }
       }
     } catch (e) {
       console.error('Drive sync file error:', file.name, e.message);
