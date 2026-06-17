@@ -207,8 +207,10 @@
                 <span style="font-weight:700;font-size:14px;color:var(--navy)">Live Preview</span>
                 <span style="font-size:12px;color:var(--text-muted)">Updates as you type</span>
               </div>
-              <div class="article-content" id="articlePreview" style="padding:24px;min-height:100px;">
-                <span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>
+              <div style="padding:28px 32px;min-height:120px" class="ql-snow" style="border:none">
+                <div class="article-content ql-editor" id="articlePreview" style="padding:0;font-family:'Plus Jakarta Sans',sans-serif">
+                  <span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>
+                </div>
               </div>
             </div>
           </div>
@@ -224,12 +226,8 @@
               </div>
               <div class="form-group-modal">
                 <label class="form-label-modal">Tags <span class="optional">(comma-separated)</span></label>
-                <input type="text" id="articleTags" class="form-control" placeholder="e.g. contracts, leave, benefits">
-              </div>
-              <div class="form-group-modal">
-                <label class="form-label-modal">Related Article IDs <span class="optional">(comma-separated)</span></label>
-                <textarea id="articleRelated" class="form-control" style="min-height:60px" placeholder="Paste article IDs to link related articles…"></textarea>
-                <div class="form-hint">Tip: copy IDs from the Articles table</div>
+                <input type="text" id="articleTags" class="form-control" placeholder="e.g. contracts, leave, benefits" list="tagsDatalist">
+                <datalist id="tagsDatalist"></datalist>
               </div>
               <div class="checkbox-row" style="margin-top:16px">
                 <input type="checkbox" id="articlePublished" checked>
@@ -239,9 +237,11 @@
 
             <!-- Related article picker -->
             <div style="background:white;border-radius:var(--radius-lg);padding:22px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm)">
-              <div style="font-weight:700;font-size:13px;color:var(--navy);margin-bottom:12px">Link Related Articles</div>
-              <input type="text" class="form-control" placeholder="Search articles…" oninput="searchRelated(this.value)" style="margin-bottom:10px">
-              <div id="relatedPickerList" style="max-height:200px;overflow-y:auto;font-size:13px;color:var(--text-muted)">
+              <div style="font-weight:700;font-size:13px;color:var(--navy);margin-bottom:4px">Link Related Articles</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Search and click to add. These appear in the sidebar when reading the article.</div>
+              <div id="relatedChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:0"></div>
+              <input type="text" id="relatedSearchInput" class="form-control" placeholder="Search articles…" oninput="searchRelated(this.value)" style="margin-bottom:8px">
+              <div id="relatedPickerList" style="max-height:180px;overflow-y:auto;font-size:13px;color:var(--text-muted)">
                 Type to search…
               </div>
             </div>
@@ -417,6 +417,7 @@
     let editingArticleId = null;
     let confirmCallback = null;
     let quill = null;
+    let selectedRelated = []; // { id, title }
 
     // Init Quill editor
     function initQuill() {
@@ -463,6 +464,7 @@
       loadArticles();
       loadUsers();
       loadCategoriesForDatalist();
+      loadTagsForDatalist();
     }
 
     // ── Navigation ────────────────────────────────────────────────
@@ -541,8 +543,13 @@
         document.getElementById('articleSummary').value = a.summary || '';
         document.getElementById('articleCategory').value = a.category || '';
         document.getElementById('articleTags').value = (a.tags || []).join(', ');
-        document.getElementById('articleRelated').value = (a.related_ids || []).join(', ');
         document.getElementById('articlePublished').checked = !!a.published;
+        // Populate related chips from saved IDs
+        selectedRelated = (a.related_ids || []).map(rid => {
+          const match = allArticles.find(x => x.id === rid);
+          return match ? { id: rid, title: match.title } : { id: rid, title: rid };
+        });
+        renderRelatedChips();
         showSection('new-article', document.querySelector('[onclick*="new-article"]'));
         // Set Quill content after editor is visible
         setTimeout(() => {
@@ -568,7 +575,12 @@
       document.getElementById('articleSummary').value = '';
       document.getElementById('articleCategory').value = '';
       document.getElementById('articleTags').value = '';
-      document.getElementById('articleRelated').value = '';
+      selectedRelated = [];
+      renderRelatedChips();
+      const rsi = document.getElementById('relatedSearchInput');
+      if (rsi) rsi.value = '';
+      const rpl = document.getElementById('relatedPickerList');
+      if (rpl) rpl.innerHTML = '<span style="color:var(--text-muted)">Type to search…</span>';
       document.getElementById('articlePublished').checked = true;
       document.getElementById('articlePreview').innerHTML = '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
       if (quill) quill.setContents([]);
@@ -582,7 +594,6 @@
       if (!textContent) { toast('Please enter some content', 'error'); return; }
 
       const tagsRaw = document.getElementById('articleTags').value;
-      const relatedRaw = document.getElementById('articleRelated').value;
 
       const payload = {
         title,
@@ -590,7 +601,7 @@
         content,
         category: document.getElementById('articleCategory').value.trim(),
         tags: tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [],
-        relatedIds: relatedRaw ? relatedRaw.split(',').map(t => t.trim()).filter(Boolean) : [],
+        relatedIds: selectedRelated.map(r => r.id),
         published: document.getElementById('articlePublished').checked
       };
 
@@ -637,28 +648,49 @@
       } catch { toast('Network error', 'error'); }
     }
 
+    function renderRelatedChips() {
+      const container = document.getElementById('relatedChips');
+      if (!container) return;
+      container.innerHTML = selectedRelated.map(r => `
+        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--orange-glow);border:1px solid rgba(61,111,255,.25);border-radius:50px;padding:3px 10px 3px 12px;font-size:12px;font-weight:600;color:var(--orange)">
+          ${escHtml(r.title)}
+          <button onclick="removeRelated('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--orange);font-size:14px;line-height:1;padding:0;margin:0" title="Remove">×</button>
+        </span>
+      `).join('');
+    }
+
+    function removeRelated(id) {
+      selectedRelated = selectedRelated.filter(r => r.id !== id);
+      renderRelatedChips();
+      searchRelated(document.getElementById('relatedSearchInput')?.value || '');
+    }
+
     async function searchRelated(q) {
       const list = document.getElementById('relatedPickerList');
       if (!q.trim()) { list.innerHTML = '<span style="color:var(--text-muted)">Type to search…</span>'; return; }
+      const selectedIds = selectedRelated.map(r => r.id);
       const matches = allArticles.filter(a =>
         a.title.toLowerCase().includes(q.toLowerCase()) &&
-        a.id !== editingArticleId
+        a.id !== editingArticleId &&
+        !selectedIds.includes(a.id)
       ).slice(0, 8);
       if (matches.length === 0) { list.innerHTML = '<span style="color:var(--text-muted)">No matches</span>'; return; }
       list.innerHTML = matches.map(a => `
-        <div style="padding:6px 0;border-bottom:1px solid var(--gray-100);cursor:pointer" onclick="addRelated('${a.id}','${escHtml(a.title)}')">
-          <div style="font-weight:600;color:var(--text)">${escHtml(a.title)}</div>
-          ${a.category ? `<div style="font-size:11px;color:var(--orange)">${escHtml(a.category)}</div>` : ''}
+        <div style="padding:7px 8px;border-bottom:1px solid var(--gray-100);cursor:pointer;border-radius:6px;transition:background .1s" onmouseover="this.style.background='var(--gray-100)'" onmouseout="this.style.background=''" onclick="addRelated('${a.id}','${escHtml(a.title).replace(/'/g, "\\'")}')">
+          <div style="font-weight:600;color:var(--text);font-size:13px">${escHtml(a.title)}</div>
+          ${a.category ? `<div style="font-size:11px;color:var(--orange);margin-top:1px">${escHtml(a.category)}</div>` : ''}
         </div>
       `).join('');
     }
 
     function addRelated(id, title) {
-      const field = document.getElementById('articleRelated');
-      const current = field.value.trim();
-      if (current.includes(id)) { toast('Already linked', 'error'); return; }
-      field.value = current ? `${current}, ${id}` : id;
-      toast(`Linked: ${title}`, 'success');
+      if (selectedRelated.find(r => r.id === id)) return;
+      selectedRelated.push({ id, title });
+      renderRelatedChips();
+      const input = document.getElementById('relatedSearchInput');
+      if (input) { input.value = ''; }
+      document.getElementById('relatedPickerList').innerHTML = '<span style="color:var(--text-muted)">Type to search…</span>';
+      toast(`Added: ${title}`, 'success');
     }
 
     async function loadCategoriesForDatalist() {
@@ -666,6 +698,16 @@
         const cats = await fetch('/api/articles/categories').then(r => r.json());
         const dl = document.getElementById('categoryList');
         dl.innerHTML = cats.map(c => `<option value="${escHtml(c.category)}">`).join('');
+      } catch {}
+    }
+
+    async function loadTagsForDatalist() {
+      try {
+        const articles = await fetch('/api/admin/articles').then(r => r.json());
+        const tagSet = new Set();
+        articles.forEach(a => (a.tags || []).forEach(t => tagSet.add(t)));
+        const dl = document.getElementById('tagsDatalist');
+        if (dl) dl.innerHTML = [...tagSet].sort().map(t => `<option value="${escHtml(t)}">`).join('');
       } catch {}
     }
 

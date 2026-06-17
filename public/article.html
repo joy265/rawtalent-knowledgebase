@@ -121,7 +121,9 @@
                 ${createdDate !== updatedDate ? `<span class="article-meta-item" style="color:var(--gray-400)">Created ${createdDate}</span>` : ''}
               </div>
               ${tagsHtml}
-              <div class="article-content ql-editor" id="articleBody" style="padding:0">${safeHtml}</div>
+              <div class="ql-snow" style="border:none">
+                <div class="article-content ql-editor" id="articleBody" style="padding:0;font-size:16px;line-height:1.9;font-family:'Plus Jakarta Sans',sans-serif">${safeHtml}</div>
+              </div>
               ${relatedHtml}
             </div>
           </div>
@@ -135,6 +137,19 @@
               <div class="sidebar-heading">Terms in This Article</div>
               <div id="glossarySidebarList"></div>
             </div>
+            ${(a.relatedArticles || []).length > 0 ? `
+            <div class="sidebar-card">
+              <div class="sidebar-heading">Related Articles</div>
+              <div id="relatedSidebarList">
+                ${a.relatedArticles.map(r => `
+                  <a href="/article?id=${r.id}" style="display:block;padding:8px 0;border-bottom:1px solid var(--gray-100);text-decoration:none;transition:color .15s"
+                    onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color=''">
+                    ${r.category ? `<div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--orange);margin-bottom:2px">${escHtml(r.category)}</div>` : ''}
+                    <div style="font-size:13px;font-weight:600;color:var(--navy);line-height:1.4">${escHtml(r.title)}</div>
+                  </a>
+                `).join('')}
+              </div>
+            </div>` : ''}
           </div>
         </div>
       `;
