@@ -161,6 +161,31 @@ router.post('/sync', async (req, res) => {
   }
 });
 
+router.get('/drive-status', async (req, res) => {
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  const folderId = process.env.DRIVE_FOLDER_ID;
+  if (!key || !folderId) {
+    return res.json({ connected: false, reason: 'Environment variables not set' });
+  }
+  try {
+    const credentials = JSON.parse(Buffer.from(key, 'base64').toString());
+    const serviceAccountEmail = credentials.client_email || 'unknown';
+    const { google } = require('googleapis');
+    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
+    const drive = google.drive({ version: 'v3', auth });
+    const result = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id)',
+      pageSize: 1
+    });
+    res.json({ connected: true, serviceAccountEmail, fileCount: result.data.files.length });
+  } catch (err) {
+    let credentials = {};
+    try { credentials = JSON.parse(Buffer.from(key, 'base64').toString()); } catch {}
+    res.json({ connected: false, serviceAccountEmail: credentials.client_email, reason: err.message });
+  }
+});
+
 // ── Glossary ──────────────────────────────────────────────────────
 router.get('/glossary', (req, res) => {
   const terms = getDb().prepare('SELECT * FROM glossary ORDER BY term ASC').all();
