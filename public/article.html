@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 </head>
 <body>
 
@@ -34,7 +35,6 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
 
   <script>
@@ -84,9 +84,7 @@
     }
 
     function renderArticle(a) {
-      marked.setOptions({ breaks: true, gfm: true });
-      const rawHtml = marked.parse(a.content || '');
-      const safeHtml = DOMPurify.sanitize(rawHtml, { ADD_TAGS: ['table','thead','tbody','tr','th','td'] });
+      const safeHtml = DOMPurify.sanitize(a.content || '', { ADD_TAGS: ['table','thead','tbody','tr','th','td'] });
 
       const updatedDate = fmtDate(a.updated_at);
       const createdDate = fmtDate(a.created_at);
@@ -123,7 +121,7 @@
                 ${createdDate !== updatedDate ? `<span class="article-meta-item" style="color:var(--gray-400)">Created ${createdDate}</span>` : ''}
               </div>
               ${tagsHtml}
-              <div class="article-content" id="articleBody">${safeHtml}</div>
+              <div class="article-content ql-editor" id="articleBody" style="padding:0">${safeHtml}</div>
               ${relatedHtml}
             </div>
           </div>
