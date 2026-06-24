@@ -120,6 +120,28 @@ async function initDatabase() {
       INSERT INTO articles_fts(articles_fts, rowid, id, title, summary, content, category, tags)
       VALUES('delete', old.rowid, old.id, old.title, old.summary, old.content, old.category, old.tags);
     END;
+
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id TEXT NOT NULL,
+      article_title TEXT NOT NULL,
+      suggested_changes TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      admin_comments TEXT DEFAULT '',
+      submitted_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS article_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id TEXT NOT NULL,
+      article_title TEXT NOT NULL,
+      action TEXT NOT NULL,
+      changes_summary TEXT DEFAULT '',
+      changed_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   // Seed glossary terms if empty

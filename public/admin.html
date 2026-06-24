@@ -54,9 +54,10 @@
     </a>
     <div class="nav-actions">
       <button class="nav-btn ghost" onclick="location.href='/'">← Knowledge Base</button>
-      <div class="nav-user">
+      <div class="nav-user" style="cursor:pointer" onclick="openPasswordModal()" title="Change your password">
         <div class="nav-avatar" id="navAvatar">J</div>
       </div>
+      <button class="nav-btn ghost" onclick="openPasswordModal()" style="font-size:12px;padding:6px 12px">⚙ Settings</button>
       <button class="nav-btn ghost" onclick="logout()">Sign Out</button>
     </div>
   </nav>
@@ -89,6 +90,15 @@
         <div class="admin-nav-label">Knowledge</div>
         <div class="admin-nav-item" onclick="showSection('glossary', this)">
           <span class="admin-nav-icon">📖</span> Glossary
+        </div>
+      </div>
+      <div class="admin-nav-section">
+        <div class="admin-nav-label">Insights</div>
+        <div class="admin-nav-item" onclick="showSection('feedback', this)">
+          <span class="admin-nav-icon">💬</span> Feedback
+        </div>
+        <div class="admin-nav-item" onclick="showSection('logs', this)">
+          <span class="admin-nav-icon">📋</span> Change Logs
         </div>
       </div>
       <div class="admin-nav-section">
@@ -168,6 +178,7 @@
             <div class="admin-page-sub">Create a new knowledge base article</div>
           </div>
           <div style="display:flex;gap:8px">
+            <button class="btn-secondary" id="viewLogsBtn" style="display:none" onclick="openLogsModal()">📋 Logs</button>
             <button class="btn-secondary" onclick="cancelEdit()">Cancel</button>
             <button class="btn-add" onclick="saveArticle()">💾 Save Article</button>
           </div>
@@ -326,7 +337,100 @@
         </div>
       </div>
 
+      <!-- Feedback -->
+      <div class="admin-section" id="section-feedback">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title">Article Feedback</div>
+            <div class="admin-page-sub">User-submitted suggestions for improving articles</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:20px">
+          <button class="cat-chip active" id="fb-filter-all" onclick="setFeedbackFilter('all',this)">All</button>
+          <button class="cat-chip" id="fb-filter-pending" onclick="setFeedbackFilter('pending',this)">Pending</button>
+          <button class="cat-chip" id="fb-filter-done" onclick="setFeedbackFilter('done',this)">Done</button>
+        </div>
+        <div id="feedbackList">
+          <div class="loading-spinner"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Change Logs -->
+      <div class="admin-section" id="section-logs">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title">Change Logs</div>
+            <div class="admin-page-sub">Track what was changed in each article, by whom, and when</div>
+          </div>
+        </div>
+        <div class="admin-table-card">
+          <div class="admin-table-header">
+            <input type="text" class="admin-search-input" placeholder="Filter by article title…" oninput="filterLogs(this.value)">
+            <span id="logsCount" style="font-size:13px;color:var(--text-muted)"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Article</th>
+                  <th style="width:80px">Action</th>
+                  <th>What Changed</th>
+                  <th style="width:160px">By</th>
+                  <th style="width:130px">Date</th>
+                  <th style="width:70px"></th>
+                </tr>
+              </thead>
+              <tbody id="logsTableBody">
+                <tr><td colspan="6"><div class="loading-spinner"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </main>
+  </div>
+
+  <!-- Logs Modal (per-article) -->
+  <div class="modal-overlay" id="logsModal" onclick="if(event.target===this)closeLogsModal()">
+    <div class="modal" style="max-width:680px">
+      <div class="modal-header">
+        <div class="modal-title" id="logsModalTitle">Change Log</div>
+        <button class="modal-close" onclick="closeLogsModal()">×</button>
+      </div>
+      <div class="modal-body" id="logsModalBody" style="padding:0">
+        <div class="loading-spinner" style="padding:32px"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Change Modal -->
+  <div class="modal-overlay" id="passwordModal" onclick="if(event.target===this)closePasswordModal()">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">Change Password</div>
+        <button class="modal-close" onclick="closePasswordModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="pwdModalError" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:10px 14px;color:#dc2626;font-size:13px;margin-bottom:14px"></div>
+        <div class="form-group-modal">
+          <label class="form-label-modal">Current Password</label>
+          <input type="password" id="adminCurrentPwd" class="form-control" placeholder="Your current password" autocomplete="current-password">
+        </div>
+        <div class="form-group-modal" style="margin-top:14px">
+          <label class="form-label-modal">New Password</label>
+          <input type="password" id="adminNewPwd" class="form-control" placeholder="At least 8 characters" autocomplete="new-password">
+        </div>
+        <div class="form-group-modal" style="margin-top:14px">
+          <label class="form-label-modal">Confirm New Password</label>
+          <input type="password" id="adminConfirmPwd" class="form-control" placeholder="Repeat new password" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closePasswordModal()">Cancel</button>
+        <button class="btn-add" onclick="changePassword()">Update Password</button>
+      </div>
+    </div>
   </div>
 
   <!-- Glossary Modal -->
@@ -559,6 +663,9 @@
         initEditor();
         if (!editingArticleId) resetArticleForm();
       }
+      if (id === 'feedback') loadFeedback();
+      if (id === 'logs') loadLogs();
+      if (id === 'glossary') loadGlossary();
     }
 
     // ── Stats ─────────────────────────────────────────────────────
@@ -632,9 +739,11 @@
           return match ? { id: rid, title: match.title } : { id: rid, title: rid };
         });
         renderRelatedChips();
-        // Hide upload zone when editing
+        // Hide upload zone when editing, show logs button
         const zone = document.getElementById('docUploadZone');
         if (zone) zone.style.display = 'none';
+        const logsBtn = document.getElementById('viewLogsBtn');
+        if (logsBtn) logsBtn.style.display = 'inline-flex';
         showSection('new-article', document.querySelector('[onclick*="new-article"]'));
         // Set editor content after editor is visible
         setTimeout(() => {
@@ -669,6 +778,8 @@
       document.getElementById('articlePublished').checked = true;
       document.getElementById('articlePreview').innerHTML = '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
       if (joditEditor) joditEditor.value = '';
+      const logsBtn = document.getElementById('viewLogsBtn');
+      if (logsBtn) logsBtn.style.display = 'none';
       // Show upload zone for new articles
       const zone = document.getElementById('docUploadZone');
       const dropZone = document.getElementById('docDropZone');
@@ -1093,6 +1204,226 @@
     document.getElementById('glossaryModal').addEventListener('click', e => {
       if (e.target === e.currentTarget) closeGlossaryModal();
     });
+
+    // ── Feedback ──────────────────────────────────────────────────
+    let allFeedback = [];
+    let feedbackFilter = 'all';
+
+    async function loadFeedback() {
+      try {
+        allFeedback = await fetch('/api/admin/feedback').then(r => r.json());
+        renderFeedback();
+      } catch { toast('Failed to load feedback', 'error'); }
+    }
+
+    function setFeedbackFilter(filter, el) {
+      feedbackFilter = filter;
+      document.querySelectorAll('#section-feedback .cat-chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      renderFeedback();
+    }
+
+    function renderFeedback() {
+      const list = document.getElementById('feedbackList');
+      const items = feedbackFilter === 'all' ? allFeedback : allFeedback.filter(f => f.status === feedbackFilter);
+      if (items.length === 0) {
+        list.innerHTML = `<div class="empty-state" style="padding:48px"><div class="empty-icon">💬</div><div class="empty-title">${feedbackFilter === 'all' ? 'No feedback yet' : 'Nothing ' + feedbackFilter}</div></div>`;
+        return;
+      }
+      list.innerHTML = items.map(f => `
+        <div style="background:white;border-radius:var(--radius-lg);padding:20px 24px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm);margin-bottom:12px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px">
+            <div>
+              <div style="font-weight:700;color:var(--navy);font-size:15px">${escHtml(f.article_title)}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">by ${escHtml(f.submitted_by || 'unknown')} · ${fmtDate(f.created_at)}</div>
+            </div>
+            <span class="badge ${f.status === 'done' ? 'badge-published' : 'badge-draft'}" style="flex-shrink:0">${f.status === 'done' ? 'Done' : 'Pending'}</span>
+          </div>
+          <div style="background:var(--gray-100);border-radius:var(--radius);padding:12px 16px;font-size:14px;line-height:1.7;color:var(--text);margin-bottom:12px;white-space:pre-wrap">${escHtml(f.suggested_changes)}</div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px">Admin Notes</label>
+            <textarea id="fb-comments-${f.id}" class="form-control" style="min-height:60px;resize:vertical;font-size:13px" placeholder="Add internal notes…">${escHtml(f.admin_comments || '')}</textarea>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+            ${f.status !== 'done'
+              ? `<button class="action-btn view" onclick="updateFeedbackStatus(${f.id},'done')">✓ Mark Done</button>`
+              : `<button class="action-btn edit" onclick="updateFeedbackStatus(${f.id},'pending')">↩ Mark Pending</button>`}
+            <button class="action-btn edit" onclick="saveFeedbackNotes(${f.id})">Save Notes</button>
+            <button class="action-btn delete" onclick="deleteFeedbackItem(${f.id})">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function updateFeedbackStatus(id, status) {
+      const comments = document.getElementById(`fb-comments-${id}`)?.value || '';
+      try {
+        await fetch(`/api/admin/feedback/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, adminComments: comments })
+        });
+        const item = allFeedback.find(f => f.id === id);
+        if (item) { item.status = status; item.admin_comments = comments; }
+        renderFeedback();
+        toast(status === 'done' ? 'Marked as done' : 'Marked as pending', 'success');
+      } catch { toast('Update failed', 'error'); }
+    }
+
+    async function saveFeedbackNotes(id) {
+      const comments = document.getElementById(`fb-comments-${id}`)?.value || '';
+      const item = allFeedback.find(f => f.id === id);
+      try {
+        await fetch(`/api/admin/feedback/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: item?.status || 'pending', adminComments: comments })
+        });
+        if (item) item.admin_comments = comments;
+        toast('Notes saved', 'success');
+      } catch { toast('Save failed', 'error'); }
+    }
+
+    async function deleteFeedbackItem(id) {
+      if (!confirm('Delete this feedback item?')) return;
+      try {
+        await fetch(`/api/admin/feedback/${id}`, { method: 'DELETE' });
+        allFeedback = allFeedback.filter(f => f.id !== id);
+        renderFeedback();
+        toast('Feedback deleted', 'success');
+      } catch { toast('Delete failed', 'error'); }
+    }
+
+    // ── Change Logs ───────────────────────────────────────────────
+    let allLogs = [];
+
+    async function loadLogs() {
+      try {
+        allLogs = await fetch('/api/admin/article-logs').then(r => r.json());
+        renderLogs(allLogs);
+      } catch { toast('Failed to load logs', 'error'); }
+    }
+
+    function renderLogs(logs) {
+      const tbody = document.getElementById('logsTableBody');
+      const countEl = document.getElementById('logsCount');
+      if (countEl) countEl.textContent = `${logs.length} entr${logs.length !== 1 ? 'ies' : 'y'}`;
+      if (logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">No change logs yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = logs.map(l => `
+        <tr>
+          <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.article_title)}</td>
+          <td><span class="badge ${l.action === 'created' ? 'badge-published' : 'badge-user'}">${l.action}</span></td>
+          <td style="font-size:13px;color:var(--text-muted);max-width:320px">${escHtml(l.changes_summary || '—')}</td>
+          <td style="font-size:13px;color:var(--text-muted)">${escHtml(l.changed_by || '—')}</td>
+          <td style="font-size:13px;color:var(--text-muted);white-space:nowrap">${fmtDate(l.created_at)}</td>
+          <td><button class="action-btn delete" onclick="deleteLog(${l.id})">Delete</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function filterLogs(q) {
+      const filtered = q ? allLogs.filter(l => l.article_title.toLowerCase().includes(q.toLowerCase())) : allLogs;
+      renderLogs(filtered);
+    }
+
+    async function deleteLog(id) {
+      if (!confirm('Delete this log entry?')) return;
+      try {
+        await fetch(`/api/admin/article-logs/${id}`, { method: 'DELETE' });
+        allLogs = allLogs.filter(l => l.id !== id);
+        renderLogs(allLogs);
+        toast('Log entry deleted', 'success');
+      } catch { toast('Delete failed', 'error'); }
+    }
+
+    // ── Per-article logs modal ────────────────────────────────────
+    async function openLogsModal() {
+      if (!editingArticleId) return;
+      document.getElementById('logsModalTitle').textContent = 'Change Log';
+      document.getElementById('logsModalBody').innerHTML = '<div class="loading-spinner" style="padding:32px"><div class="spinner"></div></div>';
+      document.getElementById('logsModal').classList.add('open');
+      try {
+        const logs = await fetch(`/api/admin/article-logs?articleId=${editingArticleId}`).then(r => r.json());
+        if (logs.length === 0) {
+          document.getElementById('logsModalBody').innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted)">No change logs for this article yet.</div>`;
+          return;
+        }
+        document.getElementById('logsModalBody').innerHTML = `
+          <table class="data-table" style="font-size:13px">
+            <thead><tr>
+              <th style="width:90px">Action</th>
+              <th>What Changed</th>
+              <th style="width:150px">By</th>
+              <th style="width:130px">Date</th>
+              <th style="width:70px"></th>
+            </tr></thead>
+            <tbody>
+              ${logs.map(l => `<tr>
+                <td><span class="badge ${l.action === 'created' ? 'badge-published' : 'badge-user'}">${l.action}</span></td>
+                <td style="color:var(--text-muted)">${escHtml(l.changes_summary || '—')}</td>
+                <td style="color:var(--text-muted)">${escHtml(l.changed_by || '—')}</td>
+                <td style="color:var(--text-muted);white-space:nowrap">${fmtDate(l.created_at)}</td>
+                <td><button class="action-btn delete" style="font-size:11px;padding:3px 8px" onclick="deleteLogFromModal(${l.id},this)">Del</button></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`;
+      } catch {
+        document.getElementById('logsModalBody').innerHTML = `<div style="padding:24px;color:#dc2626">Failed to load logs.</div>`;
+      }
+    }
+
+    function closeLogsModal() { document.getElementById('logsModal').classList.remove('open'); }
+
+    async function deleteLogFromModal(id, btn) {
+      if (!confirm('Delete this log entry?')) return;
+      try {
+        await fetch(`/api/admin/article-logs/${id}`, { method: 'DELETE' });
+        btn.closest('tr').remove();
+        toast('Log deleted', 'success');
+      } catch { toast('Delete failed', 'error'); }
+    }
+
+    // ── Password Change ───────────────────────────────────────────
+    function openPasswordModal() {
+      document.getElementById('adminCurrentPwd').value = '';
+      document.getElementById('adminNewPwd').value = '';
+      document.getElementById('adminConfirmPwd').value = '';
+      document.getElementById('pwdModalError').style.display = 'none';
+      document.getElementById('passwordModal').classList.add('open');
+    }
+    function closePasswordModal() { document.getElementById('passwordModal').classList.remove('open'); }
+
+    async function changePassword() {
+      const currentPassword = document.getElementById('adminCurrentPwd').value;
+      const newPassword = document.getElementById('adminNewPwd').value;
+      const confirmPassword = document.getElementById('adminConfirmPwd').value;
+      const errEl = document.getElementById('pwdModalError');
+      const showErr = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+      errEl.style.display = 'none';
+
+      if (!currentPassword || !newPassword || !confirmPassword) { showErr('All fields are required'); return; }
+      if (newPassword.length < 8) { showErr('New password must be at least 8 characters'); return; }
+      if (newPassword !== confirmPassword) { showErr('New passwords do not match'); return; }
+
+      try {
+        const res = await fetch('/auth/change-password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword, newPassword })
+        });
+        const data = await res.json();
+        if (!res.ok) { showErr(data.error || 'Failed to update password'); return; }
+        closePasswordModal();
+        toast('Password updated successfully', 'success');
+      } catch { showErr('Network error'); }
+    }
+
+    // close modals on overlay click
+    document.getElementById('logsModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeLogsModal(); });
+    document.getElementById('passwordModal').addEventListener('click', e => { if (e.target === e.currentTarget) closePasswordModal(); });
 
     // Extend init to also load glossary
     const _origInit = init;

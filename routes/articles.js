@@ -132,6 +132,21 @@ function findRelatedArticles(db, article) {
     .map(({ id, title, summary, category }) => ({ id, title, summary, category }));
 }
 
+// Submit feedback on an article
+router.post('/:id/feedback', requireAuth, (req, res) => {
+  const { suggestedChanges } = req.body;
+  if (!suggestedChanges?.trim()) return res.status(400).json({ error: 'Suggested changes are required' });
+
+  const db = getDb();
+  const article = db.prepare('SELECT title FROM articles WHERE id = ? AND published = 1').get(req.params.id);
+  if (!article) return res.status(404).json({ error: 'Article not found' });
+
+  db.prepare(`INSERT INTO feedback (article_id, article_title, suggested_changes, submitted_by) VALUES (?, ?, ?, ?)`)
+    .run(req.params.id, article.title, suggestedChanges.trim(), req.user.email);
+
+  res.json({ success: true });
+});
+
 function extractKeywords(text) {
   const stopWords = new Set([
     'the','a','an','and','or','but','in','on','at','to','for','of','with',

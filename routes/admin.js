@@ -122,6 +122,9 @@ router.post('/articles', async (req, res) => {
     `).run(id, title, summary || '', content, category || '', JSON.stringify(tags || []),
       JSON.stringify(relatedIds || []), req.user.email, published ? 1 : 0, driveFileId, now, now);
 
+    db.prepare(`INSERT INTO article_logs (article_id, article_title, action, changes_summary, changed_by) VALUES (?, ?, ?, ?, ?)`)
+      .run(id, title, 'created', 'Article created', req.user.email);
+
     res.json({ success: true, id });
   } catch (err) {
     console.error('Create article error:', err);
@@ -136,12 +139,23 @@ router.put('/articles/:id', async (req, res) => {
     const existing = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Article not found' });
 
+    const changes = [];
+    if (title !== existing.title) changes.push(`Title: "${existing.title}" → "${title}"`);
+    if ((summary || '') !== (existing.summary || '')) changes.push('Summary updated');
+    if (content !== existing.content) changes.push('Content updated');
+    if ((category || '') !== (existing.category || '')) changes.push(`Category: "${existing.category || 'none'}" → "${category || 'none'}"`);
+    if (JSON.stringify(tags || []) !== existing.tags) changes.push('Tags updated');
+    if (Boolean(published) !== Boolean(existing.published)) changes.push(`Status: ${existing.published ? 'Published' : 'Draft'} → ${published ? 'Published' : 'Draft'}`);
+
     const now = new Date().toISOString();
     db.prepare(`
       UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?, published=?, updated_at=?
       WHERE id=?
     `).run(title, summary || '', content, category || '', JSON.stringify(tags || []),
       JSON.stringify(relatedIds || []), published ? 1 : 0, now, req.params.id);
+
+    db.prepare(`INSERT INTO article_logs (article_id, article_title, action, changes_summary, changed_by) VALUES (?, ?, ?, ?, ?)`)
+      .run(req.params.id, title, 'updated', changes.length ? changes.join(' | ') : 'Minor edits', req.user.email);
 
     await saveArticleToDrive({
       id: req.params.id, title, summary, content, category,
@@ -231,6 +245,38 @@ router.put('/glossary/:id', (req, res) => {
 
 router.delete('/glossary/:id', (req, res) => {
   getDb().prepare('DELETE FROM glossary WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Feedback ──────────────────────────────────────────────────────
+router.get('/feedback', (req, res) => {
+  const feedback = getDb().prepare('SELECT * FROM feedback ORDER BY created_at DESC').all();
+  res.json(feedback);
+});
+
+router.put('/feedback/:id', (req, res) => {
+  const { status, adminComments } = req.body;
+  getDb().prepare("UPDATE feedback SET status=?, admin_comments=?, updated_at=datetime('now') WHERE id=?")
+    .run(status || 'pending', adminComments ?? '', req.params.id);
+  res.json({ success: true });
+});
+
+router.delete('/feedback/:id', (req, res) => {
+  getDb().prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Article Logs ──────────────────────────────────────────────────
+router.get('/article-logs', (req, res) => {
+  const { articleId } = req.query;
+  const logs = articleId
+    ? getDb().prepare('SELECT * FROM article_logs WHERE article_id = ? ORDER BY created_at DESC').all(articleId)
+    : getDb().prepare('SELECT * FROM article_logs ORDER BY created_at DESC LIMIT 200').all();
+  res.json(logs);
+});
+
+router.delete('/article-logs/:id', (req, res) => {
+  getDb().prepare('DELETE FROM article_logs WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
