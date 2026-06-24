@@ -2,7 +2,10 @@ const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'knowledgebase.db');
+// DATA_DIR is set on Railway to a persistent volume mount (e.g. /data).
+// Falls back to the local db/ folder for local development.
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DB_PATH = path.join(DATA_DIR, 'knowledgebase.db');
 let db;
 
 function getDb() {

@@ -15,6 +15,8 @@
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "googleapis": "^128.0.0",
+    "mammoth": "^1.12.0",
+    "multer": "^2.2.0",
     "passport": "^0.6.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-local": "^1.0.0",
@@ -22,5 +24,10 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true,
+    "fsevents@2.3.3": true,
+    "sqlite3@5.1.7": true
   }
 }

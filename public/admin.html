@@ -8,52 +8,41 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
-  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jodit@3.24.6/build/jodit.min.css">
   <style>
-    /* Quill editor overrides */
-    .ql-toolbar.ql-snow {
-      border: 1px solid var(--gray-200);
-      border-bottom: none;
-      border-radius: var(--radius) var(--radius) 0 0;
-      background: var(--gray-100);
-      padding: 10px 12px;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .ql-container.ql-snow {
-      border: 1px solid var(--gray-200);
-      border-radius: 0 0 var(--radius) var(--radius);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px;
-      min-height: 320px;
-      color: var(--text);
-    }
-    .ql-editor { min-height: 320px; line-height: 1.7; padding: 16px 20px; }
-    .ql-editor.ql-blank::before { color: var(--gray-400); font-style: normal; }
-    .ql-toolbar .ql-formats { margin-right: 12px; }
-    .ql-snow .ql-picker-label { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .ql-editor h1 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 16px 0 8px; }
-    .ql-editor h2 { font-size: 17px; font-weight: 700; color: var(--navy); margin: 14px 0 6px; }
-    .ql-editor p { margin-bottom: 10px; }
-    .ql-editor ul, .ql-editor ol { padding-left: 20px; margin-bottom: 10px; }
-    .ql-editor li { margin-bottom: 4px; }
-    .ql-editor blockquote {
-      border-left: 4px solid var(--orange);
-      padding: 10px 16px;
-      margin: 12px 0;
-      background: var(--orange-glow);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      color: var(--navy);
-    }
-    /* Checkbox list */
-    .ql-editor li[data-list="unchecked"]::before { content: '☐'; }
-    .ql-editor li[data-list="checked"]::before { content: '☑'; color: var(--orange); }
-    /* Toolbar active state */
-    .ql-snow.ql-toolbar button:hover, .ql-snow .ql-toolbar button:hover,
-    .ql-snow.ql-toolbar button.ql-active { color: var(--orange) !important; }
-    .ql-snow.ql-toolbar button:hover .ql-stroke,
-    .ql-snow.ql-toolbar button.ql-active .ql-stroke { stroke: var(--orange) !important; }
-    .ql-snow.ql-toolbar button:hover .ql-fill,
-    .ql-snow.ql-toolbar button.ql-active .ql-fill { fill: var(--orange) !important; }
+    /* Jodit editor overrides */
+    .jodit-container { border: 1px solid var(--gray-200) !important; border-radius: var(--radius) !important; font-family: 'Plus Jakarta Sans', sans-serif !important; }
+    .jodit-toolbar__box { background: var(--gray-100) !important; border-bottom: 1px solid var(--gray-200) !important; border-radius: var(--radius) var(--radius) 0 0 !important; }
+    .jodit-workplace { min-height: 340px !important; }
+    .jodit-wysiwyg { font-family: 'Plus Jakarta Sans', sans-serif !important; font-size: 14px !important; color: var(--text) !important; line-height: 1.7 !important; padding: 16px 20px !important; }
+    .jodit-wysiwyg:focus { outline: none !important; }
+    .jodit-container:focus-within { border-color: var(--orange) !important; box-shadow: 0 0 0 3px rgba(255,107,53,.12) !important; }
+    .jodit-toolbar-button__button:hover, .jodit-toolbar-button__button.jodit_active { background: rgba(255,107,53,.1) !important; color: var(--orange) !important; border-radius: 4px; }
+    .jodit-toolbar-button__button svg { color: inherit; }
+    .jodit-status-bar { display: none !important; }
+    /* Editor content heading/block styles */
+    .jodit-wysiwyg h1 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 16px 0 8px; }
+    .jodit-wysiwyg h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 14px 0 6px; }
+    .jodit-wysiwyg h3 { font-size: 15px; font-weight: 700; color: var(--navy); margin: 12px 0 4px; }
+    .jodit-wysiwyg p { margin-bottom: 10px; }
+    .jodit-wysiwyg ul, .jodit-wysiwyg ol { padding-left: 20px; margin-bottom: 10px; }
+    .jodit-wysiwyg li { margin-bottom: 4px; }
+    .jodit-wysiwyg blockquote { border-left: 4px solid var(--orange); padding: 10px 16px; margin: 12px 0; background: var(--orange-glow); border-radius: 0 var(--radius) var(--radius) 0; color: var(--navy); }
+    .jodit-wysiwyg table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    .jodit-wysiwyg th, .jodit-wysiwyg td { border: 1px solid var(--gray-200); padding: 8px 12px; font-size: 13px; }
+    .jodit-wysiwyg th { background: var(--gray-100); font-weight: 700; }
+    /* Live Preview content styles (mirrors editor styles exactly) */
+    #articlePreview h1 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 16px 0 8px; }
+    #articlePreview h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 14px 0 6px; }
+    #articlePreview h3 { font-size: 15px; font-weight: 700; color: var(--navy); margin: 12px 0 4px; }
+    #articlePreview p { margin-bottom: 10px; line-height: 1.7; }
+    #articlePreview ul, #articlePreview ol { padding-left: 20px; margin-bottom: 10px; }
+    #articlePreview li { margin-bottom: 4px; }
+    #articlePreview blockquote { border-left: 4px solid var(--orange); padding: 10px 16px; margin: 12px 0; background: var(--orange-glow); border-radius: 0 var(--radius) var(--radius) 0; color: var(--navy); }
+    #articlePreview table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    #articlePreview th, #articlePreview td { border: 1px solid var(--gray-200); padding: 8px 12px; font-size: 13px; }
+    #articlePreview th { background: var(--gray-100); font-weight: 700; }
+    #articlePreview a { color: var(--orange); }
   </style>
 </head>
 <body>
@@ -184,6 +173,25 @@
           </div>
         </div>
 
+        <!-- Document upload drop zone (hidden during edit) -->
+        <div id="docUploadZone" style="margin-bottom:20px">
+          <input type="file" id="docFileInput" accept=".docx,.txt" style="display:none" onchange="handleDocUpload(this)">
+          <div id="docDropZone"
+            style="border:2px dashed var(--gray-200);border-radius:var(--radius-lg);padding:28px 24px;text-align:center;background:white;cursor:pointer;transition:all .2s"
+            onclick="document.getElementById('docFileInput').click()"
+            ondragover="event.preventDefault();this.style.borderColor='var(--orange)';this.style.background='var(--orange-glow)'"
+            ondragleave="this.style.borderColor='var(--gray-200)';this.style.background='white'"
+            ondrop="handleDocDrop(event)">
+            <div style="font-size:32px;margin-bottom:8px">📄</div>
+            <div style="font-weight:700;color:var(--navy);font-size:15px;margin-bottom:4px">Upload a document to auto-fill this article</div>
+            <div style="font-size:13px;color:var(--text-muted)">Click to browse or drag & drop a <strong>.docx</strong> or <strong>.txt</strong> file — you can edit everything before saving</div>
+          </div>
+          <div id="docParsingMsg" style="display:none;text-align:center;padding:20px;font-size:14px;color:var(--text-muted)">
+            <div class="spinner" style="margin:0 auto 10px"></div>
+            Parsing document…
+          </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start">
           <div>
             <div style="background:white;border-radius:var(--radius-lg);padding:28px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm);margin-bottom:16px">
@@ -208,8 +216,8 @@
                 <span style="font-weight:700;font-size:14px;color:var(--navy)">Live Preview</span>
                 <span style="font-size:12px;color:var(--text-muted)">Updates as you type</span>
               </div>
-              <div style="padding:28px 32px;min-height:120px" class="ql-snow" style="border:none">
-                <div class="article-content ql-editor" id="articlePreview" style="padding:0;font-family:'Plus Jakarta Sans',sans-serif">
+              <div style="padding:28px 32px;min-height:120px">
+                <div class="article-content" id="articlePreview" style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;line-height:1.8;color:var(--text)">
                   <span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>
                 </div>
               </div>
@@ -410,65 +418,62 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jodit@3.24.6/build/jodit.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
   <script>
     let allArticles = [];
     let allUsers = [];
     let editingArticleId = null;
     let confirmCallback = null;
-    let quill = null;
+    let joditEditor = null;
     let selectedRelated = []; // { id, title }
 
-    // Init Quill editor
-    function initQuill() {
-      if (quill) return;
-      quill = new Quill('#articleEditor', {
-        theme: 'snow',
+    function initEditor() {
+      if (joditEditor) return;
+      joditEditor = Jodit.make('#articleEditor', {
+        height: 420,
+        minHeight: 340,
+        toolbarButtonSize: 'small',
+        showCharsCounter: false,
+        showWordsCounter: false,
+        showXPathInStatusbar: false,
         placeholder: 'Write your article here…',
-        modules: {
-          toolbar: {
-            container: [
-              [{ header: 1 }, { header: 2 }, { header: false }],
-              ['bold', 'italic', 'underline'],
-              [{ list: 'bullet' }, { list: 'ordered' }, { list: 'check' }],
-              ['blockquote', 'link'],
-              [{ indent: '-1' }, { indent: '+1' }],
-              ['clean']
-            ]
-          }
-        }
+        buttons: [
+          'paragraph', '|',
+          'bold', 'italic', 'underline', 'strikethrough', '|',
+          'brush', '|',
+          'font', 'fontsize', '|',
+          'align', '|',
+          'ul', 'ol', '|',
+          'outdent', 'indent', '|',
+          'link', 'table', 'image', '|',
+          'hr', 'quote', '|',
+          'undo', 'redo', '|',
+          'eraser', 'fullsize'
+        ],
+        buttonsMD: [
+          'paragraph', 'bold', 'italic', 'underline', '|',
+          'brush', 'font', 'fontsize', '|',
+          'align', 'ul', 'ol', '|',
+          'link', 'table', 'image', '|',
+          'undo', 'redo'
+        ],
+        style: {
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: '14px',
+          color: '#334155',
+          lineHeight: '1.7'
+        },
+        uploader: { insertImageAsBase64URI: true },
+        removeButtons: ['video', 'file', 'about', 'print', 'dots', 'source', 'preview']
       });
 
-      // Label the header picker options clearly
-      setTimeout(() => {
-        const items = document.querySelectorAll('.ql-header .ql-picker-item');
-        if (items[0]) items[0].setAttribute('data-label', 'Section Title');
-        if (items[1]) items[1].setAttribute('data-label', 'Subsection');
-        if (items[2]) items[2].setAttribute('data-label', 'Body Text');
-        const label = document.querySelector('.ql-header .ql-picker-label');
-        if (label) label.title = 'Section Title / Subsection / Body Text (cannot be combined with lists — use these for headings only)';
-        // Tooltips for toolbar buttons
-        const tooltips = {
-          '.ql-bold': 'Bold', '.ql-italic': 'Italic', '.ql-underline': 'Underline',
-          '.ql-list[value="bullet"]': 'Bullet list', '.ql-list[value="ordered"]': 'Numbered list',
-          '.ql-list[value="check"]': 'Checklist', '.ql-blockquote': 'Highlight / Quote',
-          '.ql-link': 'Insert link', '.ql-indent[value="-1"]': 'Decrease indent',
-          '.ql-indent[value="+1"]': 'Increase indent', '.ql-clean': 'Remove formatting'
-        };
-        Object.entries(tooltips).forEach(([sel, tip]) => {
-          const el = document.querySelector(sel);
-          if (el) el.title = tip;
-        });
-      }, 100);
-
-      // Live preview
-      quill.on('text-change', () => {
-        const html = quill.root.innerHTML;
+      // Live preview — mirrors editor content in real time
+      joditEditor.events.on('change', (html) => {
         const preview = document.getElementById('articlePreview');
         if (!preview) return;
-        const clean = DOMPurify.sanitize(html);
-        preview.innerHTML = clean.replace(/<p><br><\/p>/g, '') || '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
+        const clean = DOMPurify.sanitize(html || '', { ADD_TAGS: ['table','thead','tbody','tr','th','td'] });
+        preview.innerHTML = clean || '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
       });
     }
 
@@ -489,6 +494,61 @@
       checkDriveStatus();
     }
 
+    // ── Document Upload ───────────────────────────────────────────
+    function handleDocDrop(event) {
+      event.preventDefault();
+      const zone = document.getElementById('docDropZone');
+      zone.style.borderColor = 'var(--gray-200)';
+      zone.style.background = 'white';
+      const file = event.dataTransfer.files[0];
+      if (file) processDocFile(file);
+    }
+
+    function handleDocUpload(input) {
+      if (input.files[0]) processDocFile(input.files[0]);
+      input.value = '';
+    }
+
+    async function processDocFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['docx', 'txt'].includes(ext)) {
+        toast('Only .docx and .txt files are supported', 'error'); return;
+      }
+
+      // Show parsing spinner, hide drop zone
+      document.getElementById('docDropZone').style.display = 'none';
+      document.getElementById('docParsingMsg').style.display = 'block';
+
+      try {
+        const formData = new FormData();
+        formData.append('document', file);
+        const res = await fetch('/api/admin/parse-document', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) { toast(data.error || 'Parse failed', 'error'); return; }
+
+        // Ensure editor is ready
+        initEditor();
+
+        // Populate title (only if currently empty)
+        const titleEl = document.getElementById('articleTitle');
+        if (!titleEl.value.trim() && data.title) titleEl.value = data.title;
+
+        // Set editor content
+        if (joditEditor && data.content) {
+          joditEditor.value = data.content;
+        }
+
+        // Hide the upload zone entirely once content is loaded
+        document.getElementById('docUploadZone').style.display = 'none';
+        toast(`Document imported — review and save when ready`, 'success');
+      } catch {
+        toast('Network error while parsing document', 'error');
+      } finally {
+        document.getElementById('docParsingMsg').style.display = 'none';
+        document.getElementById('docDropZone').style.display = 'block';
+      }
+    }
+
     // ── Navigation ────────────────────────────────────────────────
     function showSection(id, el) {
       document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
@@ -496,7 +556,7 @@
       document.getElementById(`section-${id}`).classList.add('active');
       if (el) el.classList.add('active');
       if (id === 'new-article') {
-        initQuill();
+        initEditor();
         if (!editingArticleId) resetArticleForm();
       }
     }
@@ -572,14 +632,17 @@
           return match ? { id: rid, title: match.title } : { id: rid, title: rid };
         });
         renderRelatedChips();
+        // Hide upload zone when editing
+        const zone = document.getElementById('docUploadZone');
+        if (zone) zone.style.display = 'none';
         showSection('new-article', document.querySelector('[onclick*="new-article"]'));
-        // Set Quill content after editor is visible
+        // Set editor content after editor is visible
         setTimeout(() => {
-          if (quill) {
-            quill.root.innerHTML = DOMPurify.sanitize(a.content || '');
-            document.getElementById('articlePreview').innerHTML = DOMPurify.sanitize(a.content || '');
+          if (joditEditor) {
+            joditEditor.value = a.content || '';
+            document.getElementById('articlePreview').innerHTML = DOMPurify.sanitize(a.content || '', { ADD_TAGS: ['table','thead','tbody','tr','th','td'] });
           }
-        }, 50);
+        }, 150);
       } catch { toast('Failed to load article', 'error'); }
     }
 
@@ -605,13 +668,21 @@
       if (rpl) rpl.innerHTML = '<span style="color:var(--text-muted)">Type to search…</span>';
       document.getElementById('articlePublished').checked = true;
       document.getElementById('articlePreview').innerHTML = '<span style="color:var(--text-muted);font-style:italic;font-size:14px">Start typing to see a preview…</span>';
-      if (quill) quill.setContents([]);
+      if (joditEditor) joditEditor.value = '';
+      // Show upload zone for new articles
+      const zone = document.getElementById('docUploadZone');
+      const dropZone = document.getElementById('docDropZone');
+      if (zone) { zone.style.display = 'block'; }
+      if (dropZone) { dropZone.style.display = 'block'; }
+      document.getElementById('docParsingMsg').style.display = 'none';
     }
 
     async function saveArticle() {
       const title = document.getElementById('articleTitle').value.trim();
-      const content = quill ? quill.root.innerHTML.trim() : '';
-      const textContent = quill ? quill.getText().trim() : '';
+      const content = joditEditor ? joditEditor.value : '';
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = content;
+      const textContent = tempDiv.textContent.trim();
       if (!title) { toast('Please enter a title', 'error'); return; }
       if (!textContent) { toast('Please enter some content', 'error'); return; }
 

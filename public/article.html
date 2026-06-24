@@ -10,13 +10,65 @@
   <link rel="stylesheet" href="/css/style.css">
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
   <style>
-    /* Override Quill browser-default heading sizes inside article body */
+    /* Article body content styles */
     .article-content.ql-editor h1 { font-size: 20px !important; font-weight: 700; color: var(--navy); margin: 32px 0 12px; }
     .article-content.ql-editor h2 { font-size: 17px !important; font-weight: 700; color: var(--navy); border-bottom: 2px solid var(--gray-200); padding-bottom: 8px; margin: 28px 0 10px; }
     .article-content.ql-editor p { margin-bottom: 16px; line-height: 1.9; }
     .article-content.ql-editor li { line-height: 1.8; margin-bottom: 6px; }
     .article-content.ql-editor a { color: var(--orange); }
     .article-content.ql-editor blockquote { border-left: 4px solid var(--orange); background: var(--orange-glow); padding: 12px 20px; margin: 20px 0; font-style: italic; border-radius: 0 8px 8px 0; }
+    /* CKEditor-generated content */
+    .article-content h1 { font-size: 20px; font-weight: 700; color: var(--navy); margin: 32px 0 12px; }
+    .article-content h2 { font-size: 17px; font-weight: 700; color: var(--navy); border-bottom: 2px solid var(--gray-200); padding-bottom: 8px; margin: 28px 0 10px; }
+    .article-content h3 { font-size: 15px; font-weight: 700; color: var(--navy); margin: 20px 0 8px; }
+    .article-content p { margin-bottom: 16px; line-height: 1.9; }
+    .article-content li { line-height: 1.8; margin-bottom: 6px; }
+    .article-content a { color: var(--orange); }
+    .article-content blockquote { border-left: 4px solid var(--orange); background: var(--orange-glow); padding: 12px 20px; margin: 20px 0; font-style: italic; border-radius: 0 8px 8px 0; }
+    .article-content figure.table { margin: 16px 0; overflow-x: auto; }
+    .article-content figure.table table { border-collapse: collapse; width: 100%; }
+    .article-content figure.table table th,
+    .article-content figure.table table td { border: 1px solid var(--gray-200); padding: 8px 12px; font-size: 14px; }
+    .article-content figure.table table th { background: var(--gray-100); font-weight: 700; }
+    /* Sidebar collapse */
+    .sidebar-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 0;
+    }
+    .sidebar-card-header .sidebar-heading { margin-bottom: 0; }
+    .sidebar-toggle {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: var(--gray-100);
+      color: var(--gray-400);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .sidebar-toggle:hover { background: var(--orange-glow); color: var(--orange); }
+    .sidebar-card-body {
+      overflow: hidden;
+      transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease;
+      max-height: 600px;
+      opacity: 1;
+      margin-top: 14px;
+    }
+    .sidebar-card-body.collapsed {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
   </style>
 </head>
 <body>
@@ -139,24 +191,39 @@
 
           <div class="article-sidebar">
             <div class="sidebar-card">
-              <div class="sidebar-heading">In This Article</div>
-              <div id="tocContent" style="font-size:13px;color:var(--text-muted)">Loading…</div>
+              <div class="sidebar-card-header" onclick="toggleSidebar(this)" title="Click to collapse">
+                <div class="sidebar-heading">In This Article</div>
+                <button class="sidebar-toggle" tabindex="-1">−</button>
+              </div>
+              <div class="sidebar-card-body">
+                <div id="tocContent" style="font-size:13px;color:var(--text-muted)">Loading…</div>
+              </div>
             </div>
             <div class="sidebar-card" id="glossarySidebarCard" style="display:none">
-              <div class="sidebar-heading">Terms in This Article</div>
-              <div id="glossarySidebarList"></div>
+              <div class="sidebar-card-header" onclick="toggleSidebar(this)" title="Click to collapse">
+                <div class="sidebar-heading">Terms in This Article</div>
+                <button class="sidebar-toggle" tabindex="-1">−</button>
+              </div>
+              <div class="sidebar-card-body">
+                <div id="glossarySidebarList"></div>
+              </div>
             </div>
             ${(a.relatedArticles || []).length > 0 ? `
             <div class="sidebar-card">
-              <div class="sidebar-heading">Related Articles</div>
-              <div id="relatedSidebarList">
-                ${a.relatedArticles.map(r => `
-                  <a href="/article?id=${r.id}" style="display:block;padding:8px 0;border-bottom:1px solid var(--gray-100);text-decoration:none;transition:color .15s"
-                    onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color=''">
-                    ${r.category ? `<div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--orange);margin-bottom:2px">${escHtml(r.category)}</div>` : ''}
-                    <div style="font-size:13px;font-weight:600;color:var(--navy);line-height:1.4">${escHtml(r.title)}</div>
-                  </a>
-                `).join('')}
+              <div class="sidebar-card-header" onclick="toggleSidebar(this)" title="Click to collapse">
+                <div class="sidebar-heading">Related Articles</div>
+                <button class="sidebar-toggle" tabindex="-1">−</button>
+              </div>
+              <div class="sidebar-card-body">
+                <div id="relatedSidebarList">
+                  ${a.relatedArticles.map(r => `
+                    <a href="/article?id=${r.id}" style="display:block;padding:8px 0;border-bottom:1px solid var(--gray-100);text-decoration:none;transition:color .15s"
+                      onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color=''">
+                      ${r.category ? `<div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--orange);margin-bottom:2px">${escHtml(r.category)}</div>` : ''}
+                      <div style="font-size:13px;font-weight:600;color:var(--navy);line-height:1.4">${escHtml(r.title)}</div>
+                    </a>
+                  `).join('')}
+                </div>
               </div>
             </div>` : ''}
           </div>
@@ -245,6 +312,14 @@
         >${escHtml(h.textContent)}</a>`;
       });
       toc.innerHTML = items.join('');
+    }
+
+    function toggleSidebar(header) {
+      const body = header.nextElementSibling;
+      const btn = header.querySelector('.sidebar-toggle');
+      const isCollapsed = body.classList.toggle('collapsed');
+      btn.textContent = isCollapsed ? '+' : '−';
+      header.title = isCollapsed ? 'Click to expand' : 'Click to collapse';
     }
 
     async function logout() {

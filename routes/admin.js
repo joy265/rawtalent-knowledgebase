@@ -2,9 +2,14 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const multer = require('multer');
+const mammoth = require('mammoth');
 const { getDb } = require('../db/database');
 const { requireAdmin } = require('../middleware/authMiddleware');
 const { saveArticleToDrive, deleteArticleFromDrive, syncFromDrive } = require('../services/driveService');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.use(requireAdmin);
 
@@ -96,51 +101,61 @@ router.get('/articles/:id', (req, res) => {
 });
 
 router.post('/articles', async (req, res) => {
-  const { title, summary, content, category, tags, relatedIds, published = true } = req.body;
-  if (!title || !content) return res.status(400).json({ error: 'Title and content are required' });
+  try {
+    const { title, summary, content, category, tags, relatedIds, published = true } = req.body;
+    if (!title || !content) return res.status(400).json({ error: 'Title and content are required' });
 
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  const db = getDb();
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const db = getDb();
 
-  const driveFileId = await saveArticleToDrive({
-    id, title, summary, content, category,
-    tags: tags || [], relatedArticleIds: relatedIds || [],
-    author: req.user.email, published,
-    createdAt: now, updatedAt: now
-  });
+    const driveFileId = await saveArticleToDrive({
+      id, title, summary, content, category,
+      tags: tags || [], relatedArticleIds: relatedIds || [],
+      author: req.user.email, published,
+      createdAt: now, updatedAt: now
+    });
 
-  db.prepare(`
-    INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, title, summary || '', content, category || '', JSON.stringify(tags || []),
-    JSON.stringify(relatedIds || []), req.user.email, published ? 1 : 0, driveFileId, now, now);
+    db.prepare(`
+      INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, title, summary || '', content, category || '', JSON.stringify(tags || []),
+      JSON.stringify(relatedIds || []), req.user.email, published ? 1 : 0, driveFileId, now, now);
 
-  res.json({ success: true, id });
+    res.json({ success: true, id });
+  } catch (err) {
+    console.error('Create article error:', err);
+    res.status(500).json({ error: err.message || 'Failed to save article' });
+  }
 });
 
 router.put('/articles/:id', async (req, res) => {
-  const { title, summary, content, category, tags, relatedIds, published } = req.body;
-  const db = getDb();
-  const existing = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Article not found' });
+  try {
+    const { title, summary, content, category, tags, relatedIds, published } = req.body;
+    const db = getDb();
+    const existing = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Article not found' });
 
-  const now = new Date().toISOString();
-  db.prepare(`
-    UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?, published=?, updated_at=?
-    WHERE id=?
-  `).run(title, summary || '', content, category || '', JSON.stringify(tags || []),
-    JSON.stringify(relatedIds || []), published ? 1 : 0, now, req.params.id);
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?, published=?, updated_at=?
+      WHERE id=?
+    `).run(title, summary || '', content, category || '', JSON.stringify(tags || []),
+      JSON.stringify(relatedIds || []), published ? 1 : 0, now, req.params.id);
 
-  await saveArticleToDrive({
-    id: req.params.id, title, summary, content, category,
-    tags: tags || [], relatedArticleIds: relatedIds || [],
-    author: existing.author_email, published,
-    createdAt: existing.created_at, updatedAt: now,
-    drive_file_id: existing.drive_file_id
-  });
+    await saveArticleToDrive({
+      id: req.params.id, title, summary, content, category,
+      tags: tags || [], relatedArticleIds: relatedIds || [],
+      author: existing.author_email, published,
+      createdAt: existing.created_at, updatedAt: now,
+      drive_file_id: existing.drive_file_id
+    });
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update article error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update article' });
+  }
 });
 
 router.delete('/articles/:id', async (req, res) => {
@@ -217,6 +232,81 @@ router.put('/glossary/:id', (req, res) => {
 router.delete('/glossary/:id', (req, res) => {
   getDb().prepare('DELETE FROM glossary WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ── Document Import ───────────────────────────────────────────────
+router.post('/parse-document', upload.single('document'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const baseName = path.basename(req.file.originalname, ext)
+    .replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  try {
+    let html = '';
+    let title = baseName;
+
+    if (ext === '.docx') {
+      const result = await mammoth.convertToHtml(
+        { buffer: req.file.buffer },
+        {
+          styleMap: [
+            "p[style-name='Heading 1'] => h1:fresh",
+            "p[style-name='Heading 2'] => h2:fresh",
+            "p[style-name='Heading 3'] => h3:fresh",
+            "p[style-name='Title'] => h1:fresh",
+            "b => strong",
+            "i => em"
+          ]
+        }
+      );
+      html = result.value;
+
+      // Pull the first heading out as the article title
+      const headingMatch = html.match(/<h[123][^>]*>([\s\S]*?)<\/h[123]>/i);
+      if (headingMatch) {
+        const headingText = headingMatch[1].replace(/<[^>]+>/g, '').trim();
+        if (headingText) {
+          title = headingText;
+          html = html.slice(html.indexOf(headingMatch[0]) + headingMatch[0].length).trim();
+        }
+      }
+
+      // Clean up empty paragraphs at the start
+      html = html.replace(/^(<p>\s*<\/p>\s*)+/, '').trim();
+
+    } else if (ext === '.txt') {
+      const text = req.file.buffer.toString('utf8');
+      const lines = text.split(/\r?\n/);
+
+      // First non-empty line → title
+      const firstNonEmpty = lines.findIndex(l => l.trim());
+      if (firstNonEmpty >= 0) title = lines[firstNonEmpty].trim();
+
+      // Rest → paragraphs (blank lines = paragraph break)
+      const body = lines.slice(firstNonEmpty + 1);
+      let paragraph = [];
+      const paragraphs = [];
+      for (const line of body) {
+        if (line.trim()) {
+          paragraph.push(line.trim().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'));
+        } else if (paragraph.length) {
+          paragraphs.push(`<p>${paragraph.join(' ')}</p>`);
+          paragraph = [];
+        }
+      }
+      if (paragraph.length) paragraphs.push(`<p>${paragraph.join(' ')}</p>`);
+      html = paragraphs.join('\n');
+
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload a .docx or .txt file.' });
+    }
+
+    res.json({ title, content: html, warnings: [] });
+  } catch (err) {
+    console.error('Document parse error:', err);
+    res.status(500).json({ error: 'Failed to parse document: ' + err.message });
+  }
 });
 
 module.exports = router;

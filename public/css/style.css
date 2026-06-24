@@ -1033,31 +1033,33 @@ button { cursor: pointer; font-family: inherit; }
   visibility: hidden;
   opacity: 0;
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: calc(100% + 10px);
+  left: 0;
+  transform: none;
   background: var(--navy);
   color: white;
-  padding: 8px 14px;
+  padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
-  line-height: 1.5;
-  width: max-content;
-  max-width: 280px;
+  font-weight: 400;
+  line-height: 1.6;
+  width: 300px;
   white-space: normal;
-  text-align: center;
+  text-align: left;
   pointer-events: none;
   z-index: 200;
-  box-shadow: 0 4px 20px rgba(0,0,0,.3);
-  border: 1px solid rgba(255,255,255,.08);
-  transition: opacity 0.15s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  border: 1px solid rgba(255,255,255,.1);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 .glossary-term .glossary-tip::after {
   content: '';
   position: absolute;
   top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 16px;
+  transform: none;
   border: 6px solid transparent;
   border-top-color: var(--navy);
 }

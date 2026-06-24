@@ -16,7 +16,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
-  store: new SQLiteStore({ db: 'sessions.db', dir: './db' }),
+  store: new SQLiteStore({ db: 'sessions.db', dir: process.env.DATA_DIR || './db' }),
   secret: process.env.SESSION_SECRET || 'rt-kb-change-this-secret',
   resave: false,
   saveUninitialized: false,
