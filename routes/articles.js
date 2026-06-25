@@ -132,6 +132,29 @@ function findRelatedArticles(db, article) {
     .map(({ id, title, summary, category }) => ({ id, title, summary, category }));
 }
 
+// List file attachments for an article (metadata only, no binary data)
+router.get('/:id/files', requireAuth, (req, res) => {
+  const files = getDb().prepare(
+    'SELECT id, filename, mimetype, filesize, display_mode, created_at FROM article_files WHERE article_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id);
+  res.json(files);
+});
+
+// Serve/download a file attachment
+router.get('/file/:fileId', requireAuth, (req, res) => {
+  const file = getDb().prepare('SELECT * FROM article_files WHERE id = ?').get(req.params.fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+  const buffer = Buffer.from(file.data, 'base64');
+  res.setHeader('Content-Type', file.mimetype);
+  res.setHeader('Content-Length', buffer.length);
+  if (file.display_mode === 'download') {
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.filename)}"`);
+  } else {
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.filename)}"`);
+  }
+  res.send(buffer);
+});
+
 // Submit feedback on an article
 router.post('/:id/feedback', requireAuth, (req, res) => {
   const { suggestedChanges } = req.body;

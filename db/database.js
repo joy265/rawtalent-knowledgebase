@@ -142,6 +142,17 @@ async function initDatabase() {
       changed_by TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS article_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      mimetype TEXT NOT NULL,
+      filesize INTEGER,
+      data TEXT NOT NULL,
+      display_mode TEXT DEFAULT 'download',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   // Seed glossary terms if empty

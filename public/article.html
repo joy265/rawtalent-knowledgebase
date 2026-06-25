@@ -116,7 +116,7 @@
 
   <nav class="navbar">
     <a class="nav-brand" href="/">
-      <span class="nav-logo">Raw<span>Talent</span></span>
+      <img src="/images/logo.svg" alt="RawTalent" height="28" style="display:block">
       <span class="nav-tag">Knowledge Base</span>
     </a>
     <div class="nav-actions">
@@ -236,7 +236,9 @@
         const article = await res.json();
         currentArticleTitle = article.title;
         document.title = `${article.title} — RawTalent Knowledge Base`;
-        renderArticle(article);
+
+        const files = await fetch(`/api/articles/${articleId}/files`).then(r => r.json()).catch(() => []);
+        renderArticle(article, files);
       } catch {
         document.getElementById('pageContent').innerHTML = `
           <div class="empty-state"><div class="empty-icon">⚠️</div>
@@ -245,7 +247,7 @@
       }
     }
 
-    function renderArticle(a) {
+    function renderArticle(a, files = []) {
       const safeHtml = DOMPurify.sanitize(a.content || '', {
         ADD_TAGS: ['table','thead','tbody','tr','th','td'],
         FORCE_BODY: false
@@ -257,6 +259,38 @@
       const tagsHtml = (a.tags || []).length > 0
         ? `<div class="article-tags-row">${a.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>`
         : '';
+
+      // File attachments
+      const inlineFiles = (files || []).filter(f => f.display_mode === 'inline');
+      const downloadFiles = (files || []).filter(f => f.display_mode === 'download');
+
+      const inlineHtml = inlineFiles.length > 0 ? inlineFiles.map(f => {
+        const url = `/api/articles/file/${f.id}`;
+        if (f.mimetype.startsWith('image/')) {
+          return `<div style="margin:24px 0"><img src="${url}" alt="${escHtml(f.filename)}" style="max-width:100%;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>`;
+        } else if (f.mimetype === 'application/pdf') {
+          return `<div style="margin:24px 0"><iframe src="${url}" style="width:100%;height:600px;border:1px solid var(--gray-200);border-radius:8px" title="${escHtml(f.filename)}"></iframe></div>`;
+        }
+        return '';
+      }).join('') : '';
+
+      const downloadsHtml = downloadFiles.length > 0 ? `
+        <div style="margin:32px 0;padding:20px 24px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:10px">
+          <div style="font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">Attachments</div>
+          ${downloadFiles.map(f => `
+            <a href="/api/articles/file/${f.id}" download="${escHtml(f.filename)}"
+              style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid var(--gray-200);border-radius:8px;text-decoration:none;color:var(--navy);font-weight:600;font-size:13px;margin-bottom:8px;transition:box-shadow .15s"
+              onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow=''">
+              <span style="font-size:20px">${fileIcon(f.mimetype)}</span>
+              <div style="min-width:0">
+                <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.filename)}</div>
+                <div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:1px">${f.mimetype}</div>
+              </div>
+              <span style="margin-left:auto;font-size:12px;color:var(--text-muted);flex-shrink:0">⬇ Download</span>
+            </a>
+          `).join('')}
+        </div>
+      ` : '';
 
       const relatedHtml = (a.relatedArticles || []).length > 0 ? `
         <div class="related-articles-section">
@@ -305,6 +339,8 @@
               </div>
               ${tagsHtml}
               <div class="article-content" id="articleBody" style="font-size:16px;line-height:1.9;font-family:'Plus Jakarta Sans',sans-serif">${safeHtml}</div>
+              ${inlineHtml}
+              ${downloadsHtml}
               ${relatedHtml}
             </div>
           </div>
@@ -515,6 +551,16 @@
       t.textContent = msg;
       tc.appendChild(t);
       setTimeout(() => t.remove(), 3500);
+    }
+
+    function fileIcon(mime) {
+      if (mime.startsWith('image/')) return '🖼';
+      if (mime === 'application/pdf') return '📄';
+      if (mime.includes('word') || mime.includes('document')) return '📝';
+      if (mime.includes('sheet') || mime.includes('excel') || mime.includes('csv')) return '📊';
+      if (mime.includes('presentation') || mime.includes('powerpoint')) return '📑';
+      if (mime.includes('zip') || mime.includes('compressed')) return '🗜';
+      return '📎';
     }
 
     function escHtml(s) {

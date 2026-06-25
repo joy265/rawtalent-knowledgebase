@@ -49,7 +49,7 @@
 
   <nav class="navbar">
     <a class="nav-brand" href="/">
-      <span class="nav-logo">Raw<span>Talent</span></span>
+      <img src="/images/logo.svg" alt="RawTalent" height="28" style="display:block">
       <span class="nav-tag">Admin</span>
     </a>
     <div class="nav-actions">
@@ -253,6 +253,19 @@
                 <input type="checkbox" id="articlePublished" checked>
                 <label for="articlePublished">Published (visible to all users)</label>
               </div>
+            </div>
+
+            <!-- File Attachments (editing only) -->
+            <div id="fileAttachmentsPanel" style="display:none;background:white;border-radius:var(--radius-lg);padding:22px;border:1px solid var(--gray-200);box-shadow:var(--shadow-sm);margin-bottom:16px">
+              <div style="font-weight:700;font-size:13px;color:var(--navy);margin-bottom:4px">File Attachments</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Attach files to this article — choose how each one appears for readers.</div>
+              <select id="fileDisplayMode" class="form-control" style="margin-bottom:8px;font-size:13px">
+                <option value="download">📎 Attach as download link</option>
+                <option value="inline">🖼 Display inline (images/PDFs)</option>
+              </select>
+              <input type="file" id="fileAttachInput" style="display:none" onchange="uploadAttachment(this)">
+              <button class="btn-add" style="width:100%;justify-content:center;margin-bottom:12px" onclick="document.getElementById('fileAttachInput').click()">+ Attach File</button>
+              <div id="attachedFilesList" style="font-size:13px"></div>
             </div>
 
             <!-- Related article picker -->
@@ -619,38 +632,72 @@
         toast('Only .docx and .txt files are supported', 'error'); return;
       }
 
-      // Show parsing spinner, hide drop zone
-      document.getElementById('docDropZone').style.display = 'none';
-      document.getElementById('docParsingMsg').style.display = 'block';
+      const dropZone = document.getElementById('docDropZone');
+      const parseMsg = document.getElementById('docParsingMsg');
+      const uploadZone = document.getElementById('docUploadZone');
+
+      dropZone.style.display = 'none';
+      parseMsg.style.display = 'block';
 
       try {
         const formData = new FormData();
         formData.append('document', file);
         const res = await fetch('/api/admin/parse-document', { method: 'POST', body: formData });
+        if (!res.ok) {
+          let errMsg = 'Parse failed';
+          try { errMsg = (await res.json()).error || errMsg; } catch {}
+          toast(errMsg, 'error');
+          parseMsg.style.display = 'none';
+          dropZone.style.display = 'block';
+          return;
+        }
         const data = await res.json();
-        if (!res.ok) { toast(data.error || 'Parse failed', 'error'); return; }
 
-        // Ensure editor is ready
-        initEditor();
-
-        // Populate title (only if currently empty)
-        const titleEl = document.getElementById('articleTitle');
-        if (!titleEl.value.trim() && data.title) titleEl.value = data.title;
-
-        // Set editor content
-        if (joditEditor && data.content) {
-          joditEditor.value = data.content;
+        // Make sure the new-article section is active
+        if (!document.getElementById('section-new-article').classList.contains('active')) {
+          showSection('new-article', document.querySelector('[onclick*="new-article"]'));
         }
 
-        // Hide the upload zone entirely once content is loaded
-        document.getElementById('docUploadZone').style.display = 'none';
-        toast(`Document imported — review and save when ready`, 'success');
-      } catch {
-        toast('Network error while parsing document', 'error');
-      } finally {
-        document.getElementById('docParsingMsg').style.display = 'none';
-        document.getElementById('docDropZone').style.display = 'block';
+        // Ensure editor is ready, wait for it to fully initialize
+        initEditor();
+        await new Promise(r => setTimeout(r, 250));
+
+        // Populate all fields from the document
+        if (data.title) document.getElementById('articleTitle').value = data.title;
+        if (data.summary) document.getElementById('articleSummary').value = data.summary;
+
+        if (data.content && joditEditor) {
+          joditEditor.value = data.content;
+          // Force update the live preview
+          const preview = document.getElementById('articlePreview');
+          if (preview) {
+            preview.innerHTML = DOMPurify.sanitize(data.content, { ADD_TAGS: ['table','thead','tbody','tr','th','td'] });
+          }
+        }
+
+        // Auto-generate tags if none set
+        const tagsEl = document.getElementById('articleTags');
+        if (!tagsEl.value.trim() && data.content) {
+          const autoTags = extractKeywordsFromText(data.title + ' ' + data.content);
+          if (autoTags.length) tagsEl.value = autoTags.join(', ');
+        }
+
+        uploadZone.style.display = 'none';
+        toast('Document imported — review and save when ready', 'success');
+      } catch (err) {
+        console.error('Doc upload error:', err);
+        toast('Failed to parse document. Check the file and try again.', 'error');
+        parseMsg.style.display = 'none';
+        dropZone.style.display = 'block';
       }
+    }
+
+    function extractKeywordsFromText(text) {
+      const stop = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','how','what','when','where','why','is','are','was','were','be','been','has','have','had','do','does','did','will','would','could','should','this','that','these','those','it','its','from','by','as','if','not','all','each','every','their','they','we','you','your','our','my','his','her','also','about','into','after','before','during','within','between','over','under','through','using','used','must','make','made','more','any','some','than','then','just','only','such','both','very','new','each','which']);
+      const words = text.toLowerCase().replace(/<[^>]+>/g, ' ').replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !stop.has(w));
+      const freq = {};
+      words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+      return Object.entries(freq).sort((a,b) => b[1]-a[1]).slice(0, 6).map(([w]) => w);
     }
 
     // ── Navigation ────────────────────────────────────────────────
@@ -739,11 +786,13 @@
           return match ? { id: rid, title: match.title } : { id: rid, title: rid };
         });
         renderRelatedChips();
-        // Hide upload zone when editing, show logs button
+        // Hide upload zone when editing, show logs + file panels
         const zone = document.getElementById('docUploadZone');
         if (zone) zone.style.display = 'none';
         const logsBtn = document.getElementById('viewLogsBtn');
         if (logsBtn) logsBtn.style.display = 'inline-flex';
+        const filePanel = document.getElementById('fileAttachmentsPanel');
+        if (filePanel) { filePanel.style.display = 'block'; loadArticleFiles(id); }
         showSection('new-article', document.querySelector('[onclick*="new-article"]'));
         // Set editor content after editor is visible
         setTimeout(() => {
@@ -780,6 +829,8 @@
       if (joditEditor) joditEditor.value = '';
       const logsBtn = document.getElementById('viewLogsBtn');
       if (logsBtn) logsBtn.style.display = 'none';
+      const filePanel = document.getElementById('fileAttachmentsPanel');
+      if (filePanel) { filePanel.style.display = 'none'; document.getElementById('attachedFilesList').innerHTML = ''; }
       // Show upload zone for new articles
       const zone = document.getElementById('docUploadZone');
       const dropZone = document.getElementById('docDropZone');
@@ -797,7 +848,15 @@
       if (!title) { toast('Please enter a title', 'error'); return; }
       if (!textContent) { toast('Please enter some content', 'error'); return; }
 
-      const tagsRaw = document.getElementById('articleTags').value;
+      // Auto-generate tags if empty
+      let tagsRaw = document.getElementById('articleTags').value;
+      if (!tagsRaw.trim() && content) {
+        const autoTags = extractKeywordsFromText(title + ' ' + content);
+        if (autoTags.length) {
+          tagsRaw = autoTags.join(', ');
+          document.getElementById('articleTags').value = tagsRaw;
+        }
+      }
 
       const payload = {
         title,
@@ -1204,6 +1263,63 @@
     document.getElementById('glossaryModal').addEventListener('click', e => {
       if (e.target === e.currentTarget) closeGlossaryModal();
     });
+
+    // ── File Attachments ──────────────────────────────────────────
+    async function loadArticleFiles(articleId) {
+      try {
+        const files = await fetch(`/api/admin/articles/${articleId}/files`).then(r => r.json());
+        renderFilesList(files);
+      } catch { document.getElementById('attachedFilesList').innerHTML = '<div style="color:var(--text-muted);font-size:12px">Could not load files.</div>'; }
+    }
+
+    function renderFilesList(files) {
+      const el = document.getElementById('attachedFilesList');
+      if (!files.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:8px">No files attached yet</div>'; return; }
+      el.innerHTML = files.map(f => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--gray-100)">
+          <div style="min-width:0">
+            <div style="font-weight:600;font-size:12px;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.filename)}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${f.display_mode === 'inline' ? '🖼 Inline' : '📎 Download'} · ${formatFileSize(f.filesize)}</div>
+          </div>
+          <button class="action-btn delete" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="deleteAttachment(${f.id})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    async function uploadAttachment(input) {
+      if (!input.files[0] || !editingArticleId) return;
+      const file = input.files[0];
+      input.value = '';
+      if (file.size > 20 * 1024 * 1024) { toast('File must be under 20MB', 'error'); return; }
+      const displayMode = document.getElementById('fileDisplayMode').value;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('displayMode', displayMode);
+      toast('Uploading file…');
+      try {
+        const res = await fetch(`/api/admin/articles/${editingArticleId}/files`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) { toast(data.error || 'Upload failed', 'error'); return; }
+        toast(`${file.name} attached`, 'success');
+        loadArticleFiles(editingArticleId);
+      } catch { toast('Upload failed', 'error'); }
+    }
+
+    async function deleteAttachment(fileId) {
+      if (!confirm('Remove this attachment?')) return;
+      try {
+        await fetch(`/api/admin/files/${fileId}`, { method: 'DELETE' });
+        toast('Attachment removed', 'success');
+        if (editingArticleId) loadArticleFiles(editingArticleId);
+      } catch { toast('Delete failed', 'error'); }
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '—';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
 
     // ── Feedback ──────────────────────────────────────────────────
     let allFeedback = [];

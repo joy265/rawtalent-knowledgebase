@@ -348,11 +348,51 @@ router.post('/parse-document', upload.single('document'), async (req, res) => {
       return res.status(400).json({ error: 'Unsupported file type. Please upload a .docx or .txt file.' });
     }
 
-    res.json({ title, content: html, warnings: [] });
+    // Extract plain-text summary from first meaningful paragraph
+    const summaryMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const summary = summaryMatch
+      ? summaryMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 280)
+      : '';
+
+    res.json({ title, content: html, summary, warnings: [] });
   } catch (err) {
     console.error('Document parse error:', err);
     res.status(500).json({ error: 'Failed to parse document: ' + err.message });
   }
+});
+
+// ── Article File Attachments ──────────────────────────────────────
+const fileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
+router.post('/articles/:id/files', fileUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const { displayMode = 'download' } = req.body;
+  const db = getDb();
+  const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(req.params.id);
+  if (!article) return res.status(404).json({ error: 'Article not found' });
+
+  const base64 = req.file.buffer.toString('base64');
+  const result = db.prepare(`
+    INSERT INTO article_files (article_id, filename, mimetype, filesize, data, display_mode)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(req.params.id, req.file.originalname, req.file.mimetype, req.file.size, base64, displayMode);
+
+  res.json({ success: true, id: result.lastInsertRowid, filename: req.file.originalname, displayMode });
+});
+
+router.get('/articles/:id/files', (req, res) => {
+  const files = getDb().prepare(
+    'SELECT id, filename, mimetype, filesize, display_mode, created_at FROM article_files WHERE article_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id);
+  res.json(files);
+});
+
+router.delete('/files/:id', (req, res) => {
+  getDb().prepare('DELETE FROM article_files WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
 });
 
 module.exports = router;
