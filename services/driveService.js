@@ -82,34 +82,37 @@ async function syncFromDrive() {
       const article = resp.data;
       if (!article.id || !article.title) continue;
 
-      const existing = db.prepare('SELECT id, updated_at FROM articles WHERE id = ?').get(article.id);
+      const existRes = await db.execute({ sql: 'SELECT id, updated_at FROM articles WHERE id = ?', args: [article.id] });
+      const existing = existRes.rows[0];
+
       if (!existing) {
-        db.prepare(`
-          INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          article.id, article.title, article.summary || '', article.content || '',
-          article.category || '', JSON.stringify(article.tags || []),
-          JSON.stringify(article.relatedArticleIds || []),
-          article.author || '', article.published !== false ? 1 : 0,
-          file.id, article.createdAt || new Date().toISOString(), article.updatedAt || new Date().toISOString()
-        );
+        await db.execute({
+          sql: `INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            article.id, article.title, article.summary || '', article.content || '',
+            article.category || '', JSON.stringify(article.tags || []),
+            JSON.stringify(article.relatedArticleIds || []),
+            article.author || '', article.published !== false ? 1 : 0,
+            file.id, article.createdAt || new Date().toISOString(), article.updatedAt || new Date().toISOString()
+          ]
+        });
         synced++;
       } else {
-        // Update if Drive version is newer
         const driveUpdated = article.updatedAt || '';
         const dbUpdated = existing.updated_at || '';
         if (driveUpdated > dbUpdated) {
-          db.prepare(`
-            UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?,
-              published=?, drive_file_id=?, updated_at=? WHERE id=?
-          `).run(
-            article.title, article.summary || '', article.content || '',
-            article.category || '', JSON.stringify(article.tags || []),
-            JSON.stringify(article.relatedArticleIds || []),
-            article.published !== false ? 1 : 0, file.id,
-            article.updatedAt || new Date().toISOString(), article.id
-          );
+          await db.execute({
+            sql: `UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?,
+                  published=?, drive_file_id=?, updated_at=? WHERE id=?`,
+            args: [
+              article.title, article.summary || '', article.content || '',
+              article.category || '', JSON.stringify(article.tags || []),
+              JSON.stringify(article.relatedArticleIds || []),
+              article.published !== false ? 1 : 0, file.id,
+              article.updatedAt || new Date().toISOString(), article.id
+            ]
+          });
           synced++;
         }
       }
@@ -118,7 +121,7 @@ async function syncFromDrive() {
     }
   }
 
-  console.log(`✓ Drive sync complete — ${synced} new articles imported`);
+  console.log(`✓ Drive sync complete — ${synced} articles imported/updated`);
 }
 
 module.exports = { saveArticleToDrive, deleteArticleFromDrive, syncFromDrive };

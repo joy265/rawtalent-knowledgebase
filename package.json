@@ -8,9 +8,8 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.3.0",
-    "connect-sqlite3": "^0.9.13",
     "dotenv": "^16.4.1",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
@@ -24,10 +23,5 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
-  },
-  "allowScripts": {
-    "better-sqlite3@11.10.0": true,
-    "fsevents@2.3.3": true,
-    "sqlite3@5.1.7": true
   }
 }

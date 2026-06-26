@@ -3,7 +3,6 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
-const SQLiteStore = require('connect-sqlite3')(session);
 
 const { initDatabase } = require('./db/database');
 const { syncFromDrive } = require('./services/driveService');
@@ -11,12 +10,16 @@ const { syncFromDrive } = require('./services/driveService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serialize BigInt values that @libsql/client may return (e.g. lastInsertRowid)
+app.set('json replacer', (key, value) =>
+  typeof value === 'bigint' ? Number(value) : value
+);
+
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
-  store: new SQLiteStore({ db: 'sessions.db', dir: process.env.DATA_DIR || './db' }),
   secret: process.env.SESSION_SECRET || 'rt-kb-change-this-secret',
   resave: false,
   saveUninitialized: false,

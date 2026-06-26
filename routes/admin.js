@@ -14,22 +14,36 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 router.use(requireAdmin);
 
 // ── Stats ─────────────────────────────────────────────────────────
-router.get('/stats', (req, res) => {
-  const db = getDb();
-  res.json({
-    totalArticles: db.prepare('SELECT COUNT(*) as n FROM articles WHERE published=1').get().n,
-    draftArticles: db.prepare('SELECT COUNT(*) as n FROM articles WHERE published=0').get().n,
-    totalUsers: db.prepare('SELECT COUNT(*) as n FROM users WHERE active=1').get().n,
-    categories: db.prepare("SELECT COUNT(DISTINCT category) as n FROM articles WHERE published=1 AND category!=''").get().n
-  });
+router.get('/stats', async (req, res) => {
+  try {
+    const db = getDb();
+    const [total, draft, users, cats] = await Promise.all([
+      db.execute('SELECT COUNT(*) as n FROM articles WHERE published=1'),
+      db.execute('SELECT COUNT(*) as n FROM articles WHERE published=0'),
+      db.execute('SELECT COUNT(*) as n FROM users WHERE active=1'),
+      db.execute("SELECT COUNT(DISTINCT category) as n FROM articles WHERE published=1 AND category!=''"),
+    ]);
+    res.json({
+      totalArticles: Number(total.rows[0].n),
+      draftArticles: Number(draft.rows[0].n),
+      totalUsers: Number(users.rows[0].n),
+      categories: Number(cats.rows[0].n)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Users ─────────────────────────────────────────────────────────
-router.get('/users', (req, res) => {
-  const users = getDb().prepare(`
-    SELECT id, email, name, role, active, created_at, last_login FROM users ORDER BY created_at DESC
-  `).all();
-  res.json(users);
+router.get('/users', async (req, res) => {
+  try {
+    const result = await getDb().execute(
+      'SELECT id, email, name, role, active, created_at, last_login FROM users ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/users', async (req, res) => {
@@ -39,65 +53,86 @@ router.post('/users', async (req, res) => {
     return res.status(400).json({ error: 'Only @rawtalent.com.au email addresses are allowed' });
   }
 
-  const db = getDb();
-  if (db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase())) {
-    return res.status(409).json({ error: 'A user with this email already exists' });
-  }
+  try {
+    const db = getDb();
+    const existing = await db.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: [email.toLowerCase()] });
+    if (existing.rows[0]) return res.status(409).json({ error: 'A user with this email already exists' });
 
-  const hash = password ? await bcrypt.hash(password, 12) : null;
-  db.prepare('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)')
-    .run(email.toLowerCase(), name, hash, role);
-  res.json({ success: true });
+    const hash = password ? await bcrypt.hash(password, 12) : null;
+    await db.execute({
+      sql: 'INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)',
+      args: [email.toLowerCase(), name, hash, role]
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.put('/users/:id', async (req, res) => {
   const { name, role, active, password } = req.body;
-  const db = getDb();
-  const target = db.prepare('SELECT email FROM users WHERE id = ?').get(req.params.id);
-  if (!target) return res.status(404).json({ error: 'User not found' });
+  try {
+    const db = getDb();
+    const targetRes = await db.execute({ sql: 'SELECT email FROM users WHERE id = ?', args: [req.params.id] });
+    const target = targetRes.rows[0];
+    if (!target) return res.status(404).json({ error: 'User not found' });
 
-  const adminEmail = (process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au').toLowerCase();
-  if (target.email.toLowerCase() === adminEmail && role && role !== 'admin') {
-    return res.status(400).json({ error: 'Cannot change the primary admin role' });
+    const adminEmail = (process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au').toLowerCase();
+    if (target.email.toLowerCase() === adminEmail && role && role !== 'admin') {
+      return res.status(400).json({ error: 'Cannot change the primary admin role' });
+    }
+
+    if (password) {
+      const hash = await bcrypt.hash(password, 12);
+      await db.execute({ sql: 'UPDATE users SET password_hash = ? WHERE id = ?', args: [hash, req.params.id] });
+    }
+    if (name !== undefined) await db.execute({ sql: 'UPDATE users SET name = ? WHERE id = ?', args: [name, req.params.id] });
+    if (role !== undefined) await db.execute({ sql: 'UPDATE users SET role = ? WHERE id = ?', args: [role, req.params.id] });
+    if (active !== undefined) await db.execute({ sql: 'UPDATE users SET active = ? WHERE id = ?', args: [active ? 1 : 0, req.params.id] });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  if (password) {
-    const hash = await bcrypt.hash(password, 12);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.params.id);
-  }
-  if (name !== undefined) db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, req.params.id);
-  if (role !== undefined) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, req.params.id);
-  if (active !== undefined) db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
-
-  res.json({ success: true });
 });
 
-router.delete('/users/:id', (req, res) => {
-  const db = getDb();
-  const target = db.prepare('SELECT email FROM users WHERE id = ?').get(req.params.id);
-  if (!target) return res.status(404).json({ error: 'User not found' });
-  if (target.email.toLowerCase() === (process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au').toLowerCase()) {
-    return res.status(400).json({ error: 'Cannot delete the primary admin account' });
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const db = getDb();
+    const targetRes = await db.execute({ sql: 'SELECT email FROM users WHERE id = ?', args: [req.params.id] });
+    const target = targetRes.rows[0];
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.email.toLowerCase() === (process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au').toLowerCase()) {
+      return res.status(400).json({ error: 'Cannot delete the primary admin account' });
+    }
+    await db.execute({ sql: 'DELETE FROM users WHERE id = ?', args: [req.params.id] });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
 });
 
 // ── Articles ──────────────────────────────────────────────────────
-router.get('/articles', (req, res) => {
-  const articles = getDb().prepare(`
-    SELECT id, title, summary, category, tags, published, created_at, updated_at, author_email
-    FROM articles ORDER BY updated_at DESC
-  `).all();
-  res.json(articles.map(a => ({ ...a, tags: JSON.parse(a.tags || '[]') })));
+router.get('/articles', async (req, res) => {
+  try {
+    const result = await getDb().execute(
+      'SELECT id, title, summary, category, tags, published, created_at, updated_at, author_email FROM articles ORDER BY updated_at DESC'
+    );
+    res.json(result.rows.map(a => ({ ...a, tags: JSON.parse(a.tags || '[]') })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.get('/articles/:id', (req, res) => {
-  const article = getDb().prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id);
-  if (!article) return res.status(404).json({ error: 'Not found' });
-  article.tags = JSON.parse(article.tags || '[]');
-  article.related_ids = JSON.parse(article.related_ids || '[]');
-  res.json(article);
+router.get('/articles/:id', async (req, res) => {
+  try {
+    const result = await getDb().execute({ sql: 'SELECT * FROM articles WHERE id = ?', args: [req.params.id] });
+    const article = result.rows[0];
+    if (!article) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...article, tags: JSON.parse(article.tags || '[]'), related_ids: JSON.parse(article.related_ids || '[]') });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/articles', async (req, res) => {
@@ -116,14 +151,17 @@ router.post('/articles', async (req, res) => {
       createdAt: now, updatedAt: now
     });
 
-    db.prepare(`
-      INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, title, summary || '', content, category || '', JSON.stringify(tags || []),
-      JSON.stringify(relatedIds || []), req.user.email, published ? 1 : 0, driveFileId, now, now);
+    await db.execute({
+      sql: `INSERT INTO articles (id, title, summary, content, category, tags, related_ids, author_email, published, drive_file_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [id, title, summary || '', content, category || '', JSON.stringify(tags || []),
+        JSON.stringify(relatedIds || []), req.user.email, published ? 1 : 0, driveFileId, now, now]
+    });
 
-    db.prepare(`INSERT INTO article_logs (article_id, article_title, action, changes_summary, changed_by) VALUES (?, ?, ?, ?, ?)`)
-      .run(id, title, 'created', 'Article created', req.user.email);
+    await db.execute({
+      sql: 'INSERT INTO article_logs (article_id, article_title, action, changes_summary, changed_by) VALUES (?, ?, ?, ?, ?)',
+      args: [id, title, 'created', 'Article created', req.user.email]
+    });
 
     res.json({ success: true, id });
   } catch (err) {
@@ -136,7 +174,8 @@ router.put('/articles/:id', async (req, res) => {
   try {
     const { title, summary, content, category, tags, relatedIds, published } = req.body;
     const db = getDb();
-    const existing = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id);
+    const existRes = await db.execute({ sql: 'SELECT * FROM articles WHERE id = ?', args: [req.params.id] });
+    const existing = existRes.rows[0];
     if (!existing) return res.status(404).json({ error: 'Article not found' });
 
     const changes = [];
@@ -148,14 +187,16 @@ router.put('/articles/:id', async (req, res) => {
     if (Boolean(published) !== Boolean(existing.published)) changes.push(`Status: ${existing.published ? 'Published' : 'Draft'} → ${published ? 'Published' : 'Draft'}`);
 
     const now = new Date().toISOString();
-    db.prepare(`
-      UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?, published=?, updated_at=?
-      WHERE id=?
-    `).run(title, summary || '', content, category || '', JSON.stringify(tags || []),
-      JSON.stringify(relatedIds || []), published ? 1 : 0, now, req.params.id);
+    await db.execute({
+      sql: `UPDATE articles SET title=?, summary=?, content=?, category=?, tags=?, related_ids=?, published=?, updated_at=? WHERE id=?`,
+      args: [title, summary || '', content, category || '', JSON.stringify(tags || []),
+        JSON.stringify(relatedIds || []), published ? 1 : 0, now, req.params.id]
+    });
 
-    db.prepare(`INSERT INTO article_logs (article_id, article_title, action, changes_summary, changed_by) VALUES (?, ?, ?, ?, ?)`)
-      .run(req.params.id, title, 'updated', changes.length ? changes.join(' | ') : 'Minor edits', req.user.email);
+    await db.execute({
+      sql: 'INSERT INTO article_logs (article_id, article_title, action, changes_summary, changed_by) VALUES (?, ?, ?, ?, ?)',
+      args: [req.params.id, title, 'updated', changes.length ? changes.join(' | ') : 'Minor edits', req.user.email]
+    });
 
     await saveArticleToDrive({
       id: req.params.id, title, summary, content, category,
@@ -173,12 +214,16 @@ router.put('/articles/:id', async (req, res) => {
 });
 
 router.delete('/articles/:id', async (req, res) => {
-  const db = getDb();
-  const article = db.prepare('SELECT drive_file_id FROM articles WHERE id = ?').get(req.params.id);
-  if (!article) return res.status(404).json({ error: 'Article not found' });
-  await deleteArticleFromDrive(article.drive_file_id);
-  db.prepare('DELETE FROM articles WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+  try {
+    const db = getDb();
+    const artRes = await db.execute({ sql: 'SELECT drive_file_id FROM articles WHERE id = ?', args: [req.params.id] });
+    if (!artRes.rows[0]) return res.status(404).json({ error: 'Article not found' });
+    await deleteArticleFromDrive(artRes.rows[0].drive_file_id);
+    await db.execute({ sql: 'DELETE FROM articles WHERE id = ?', args: [req.params.id] });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/sync', async (req, res) => {
@@ -216,68 +261,104 @@ router.get('/drive-status', async (req, res) => {
 });
 
 // ── Glossary ──────────────────────────────────────────────────────
-router.get('/glossary', (req, res) => {
-  const terms = getDb().prepare('SELECT * FROM glossary ORDER BY term ASC').all();
-  res.json(terms);
+router.get('/glossary', async (req, res) => {
+  try {
+    const result = await getDb().execute('SELECT * FROM glossary ORDER BY term ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/glossary', (req, res) => {
+router.post('/glossary', async (req, res) => {
   const { term, definition } = req.body;
   if (!term || !definition) return res.status(400).json({ error: 'Term and definition are required' });
   try {
-    getDb().prepare('INSERT INTO glossary (term, definition) VALUES (?, ?)').run(term.trim(), definition.trim());
+    await getDb().execute({ sql: 'INSERT INTO glossary (term, definition) VALUES (?, ?)', args: [term.trim(), definition.trim()] });
     res.json({ success: true });
   } catch {
     res.status(409).json({ error: 'That term already exists' });
   }
 });
 
-router.put('/glossary/:id', (req, res) => {
+router.put('/glossary/:id', async (req, res) => {
   const { term, definition } = req.body;
   if (!term || !definition) return res.status(400).json({ error: 'Term and definition are required' });
-  const db = getDb();
-  const existing = db.prepare('SELECT id FROM glossary WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Term not found' });
-  db.prepare("UPDATE glossary SET term=?, definition=?, updated_at=datetime('now') WHERE id=?")
-    .run(term.trim(), definition.trim(), req.params.id);
-  res.json({ success: true });
+  try {
+    const db = getDb();
+    const existing = await db.execute({ sql: 'SELECT id FROM glossary WHERE id = ?', args: [req.params.id] });
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Term not found' });
+    await db.execute({
+      sql: "UPDATE glossary SET term=?, definition=?, updated_at=datetime('now') WHERE id=?",
+      args: [term.trim(), definition.trim(), req.params.id]
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.delete('/glossary/:id', (req, res) => {
-  getDb().prepare('DELETE FROM glossary WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/glossary/:id', async (req, res) => {
+  try {
+    await getDb().execute({ sql: 'DELETE FROM glossary WHERE id = ?', args: [req.params.id] });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Feedback ──────────────────────────────────────────────────────
-router.get('/feedback', (req, res) => {
-  const feedback = getDb().prepare('SELECT * FROM feedback ORDER BY created_at DESC').all();
-  res.json(feedback);
+router.get('/feedback', async (req, res) => {
+  try {
+    const result = await getDb().execute('SELECT * FROM feedback ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.put('/feedback/:id', (req, res) => {
+router.put('/feedback/:id', async (req, res) => {
   const { status, adminComments } = req.body;
-  getDb().prepare("UPDATE feedback SET status=?, admin_comments=?, updated_at=datetime('now') WHERE id=?")
-    .run(status || 'pending', adminComments ?? '', req.params.id);
-  res.json({ success: true });
+  try {
+    await getDb().execute({
+      sql: "UPDATE feedback SET status=?, admin_comments=?, updated_at=datetime('now') WHERE id=?",
+      args: [status || 'pending', adminComments ?? '', req.params.id]
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.delete('/feedback/:id', (req, res) => {
-  getDb().prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/feedback/:id', async (req, res) => {
+  try {
+    await getDb().execute({ sql: 'DELETE FROM feedback WHERE id = ?', args: [req.params.id] });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Article Logs ──────────────────────────────────────────────────
-router.get('/article-logs', (req, res) => {
-  const { articleId } = req.query;
-  const logs = articleId
-    ? getDb().prepare('SELECT * FROM article_logs WHERE article_id = ? ORDER BY created_at DESC').all(articleId)
-    : getDb().prepare('SELECT * FROM article_logs ORDER BY created_at DESC LIMIT 200').all();
-  res.json(logs);
+router.get('/article-logs', async (req, res) => {
+  try {
+    const { articleId } = req.query;
+    const result = articleId
+      ? await getDb().execute({ sql: 'SELECT * FROM article_logs WHERE article_id = ? ORDER BY created_at DESC', args: [articleId] })
+      : await getDb().execute('SELECT * FROM article_logs ORDER BY created_at DESC LIMIT 200');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.delete('/article-logs/:id', (req, res) => {
-  getDb().prepare('DELETE FROM article_logs WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/article-logs/:id', async (req, res) => {
+  try {
+    await getDb().execute({ sql: 'DELETE FROM article_logs WHERE id = ?', args: [req.params.id] });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Document Import ───────────────────────────────────────────────
@@ -308,7 +389,6 @@ router.post('/parse-document', upload.single('document'), async (req, res) => {
       );
       html = result.value;
 
-      // Pull the first heading out as the article title
       const headingMatch = html.match(/<h[123][^>]*>([\s\S]*?)<\/h[123]>/i);
       if (headingMatch) {
         const headingText = headingMatch[1].replace(/<[^>]+>/g, '').trim();
@@ -318,18 +398,15 @@ router.post('/parse-document', upload.single('document'), async (req, res) => {
         }
       }
 
-      // Clean up empty paragraphs at the start
       html = html.replace(/^(<p>\s*<\/p>\s*)+/, '').trim();
 
     } else if (ext === '.txt') {
       const text = req.file.buffer.toString('utf8');
       const lines = text.split(/\r?\n/);
 
-      // First non-empty line → title
       const firstNonEmpty = lines.findIndex(l => l.trim());
       if (firstNonEmpty >= 0) title = lines[firstNonEmpty].trim();
 
-      // Rest → paragraphs (blank lines = paragraph break)
       const body = lines.slice(firstNonEmpty + 1);
       let paragraph = [];
       const paragraphs = [];
@@ -348,7 +425,6 @@ router.post('/parse-document', upload.single('document'), async (req, res) => {
       return res.status(400).json({ error: 'Unsupported file type. Please upload a .docx or .txt file.' });
     }
 
-    // Extract plain-text summary from first meaningful paragraph
     const summaryMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
     const summary = summaryMatch
       ? summaryMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 280)
@@ -367,32 +443,45 @@ const fileUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-router.post('/articles/:id/files', fileUpload.single('file'), (req, res) => {
+router.post('/articles/:id/files', fileUpload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const { displayMode = 'download' } = req.body;
-  const db = getDb();
-  const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(req.params.id);
-  if (!article) return res.status(404).json({ error: 'Article not found' });
+  try {
+    const db = getDb();
+    const artRes = await db.execute({ sql: 'SELECT id FROM articles WHERE id = ?', args: [req.params.id] });
+    if (!artRes.rows[0]) return res.status(404).json({ error: 'Article not found' });
 
-  const base64 = req.file.buffer.toString('base64');
-  const result = db.prepare(`
-    INSERT INTO article_files (article_id, filename, mimetype, filesize, data, display_mode)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(req.params.id, req.file.originalname, req.file.mimetype, req.file.size, base64, displayMode);
+    const base64 = req.file.buffer.toString('base64');
+    const result = await db.execute({
+      sql: 'INSERT INTO article_files (article_id, filename, mimetype, filesize, data, display_mode) VALUES (?, ?, ?, ?, ?, ?)',
+      args: [req.params.id, req.file.originalname, req.file.mimetype, req.file.size, base64, displayMode]
+    });
 
-  res.json({ success: true, id: result.lastInsertRowid, filename: req.file.originalname, displayMode });
+    res.json({ success: true, id: Number(result.lastInsertRowid), filename: req.file.originalname, displayMode });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.get('/articles/:id/files', (req, res) => {
-  const files = getDb().prepare(
-    'SELECT id, filename, mimetype, filesize, display_mode, created_at FROM article_files WHERE article_id = ? ORDER BY created_at ASC'
-  ).all(req.params.id);
-  res.json(files);
+router.get('/articles/:id/files', async (req, res) => {
+  try {
+    const result = await getDb().execute({
+      sql: 'SELECT id, filename, mimetype, filesize, display_mode, created_at FROM article_files WHERE article_id = ? ORDER BY created_at ASC',
+      args: [req.params.id]
+    });
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.delete('/files/:id', (req, res) => {
-  getDb().prepare('DELETE FROM article_files WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/files/:id', async (req, res) => {
+  try {
+    await getDb().execute({ sql: 'DELETE FROM article_files WHERE id = ?', args: [req.params.id] });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

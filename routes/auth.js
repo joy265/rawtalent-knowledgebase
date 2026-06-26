@@ -8,9 +8,9 @@ router.post('/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) return res.status(500).json({ error: 'Server error' });
     if (!user) return res.status(401).json({ error: info?.message || 'Invalid credentials' });
-    req.logIn(user, (err) => {
+    req.logIn(user, async (err) => {
       if (err) return res.status(500).json({ error: 'Login failed' });
-      getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
+      await getDb().execute({ sql: "UPDATE users SET last_login = datetime('now') WHERE id = ?", args: [user.id] });
       res.json({ success: true, user: { email: user.email, name: user.name, role: user.role } });
     });
   })(req, res, next);
@@ -20,8 +20,8 @@ if (process.env.GOOGLE_CLIENT_ID) {
   router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
   router.get('/google/callback',
     passport.authenticate('google', { failureRedirect: '/login.html?error=1' }),
-    (req, res) => {
-      getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(req.user.id);
+    async (req, res) => {
+      await getDb().execute({ sql: "UPDATE users SET last_login = datetime('now') WHERE id = ?", args: [req.user.id] });
       res.redirect('/');
     }
   );
@@ -46,7 +46,8 @@ router.put('/change-password', async (req, res) => {
   if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
 
   const db = getDb();
-  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
+  const userRes = await db.execute({ sql: 'SELECT password_hash FROM users WHERE id = ?', args: [req.user.id] });
+  const user = userRes.rows[0];
   if (!user || !user.password_hash) {
     return res.status(400).json({ error: 'Password change is not available for Google sign-in accounts' });
   }
@@ -54,7 +55,7 @@ router.put('/change-password', async (req, res) => {
   if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
 
   const hash = await bcrypt.hash(newPassword, 12);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
+  await db.execute({ sql: 'UPDATE users SET password_hash = ? WHERE id = ?', args: [hash, req.user.id] });
   res.json({ success: true });
 });
 

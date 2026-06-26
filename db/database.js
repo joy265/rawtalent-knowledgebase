@@ -1,20 +1,16 @@
-const Database = require('better-sqlite3');
+const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-const fs = require('fs');
 
-const DATA_DIR = process.env.DATA_DIR || __dirname;
-fs.mkdirSync(DATA_DIR, { recursive: true });
-const DB_PATH = path.join(DATA_DIR, 'knowledgebase.db');
-let db;
+let client;
 
 function getDb() {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+  if (!client) {
+    client = createClient({
+      url: process.env.TURSO_DATABASE_URL || 'file:./knowledgebase.db',
+      authToken: process.env.TURSO_AUTH_TOKEN
+    });
   }
-  return db;
+  return client;
 }
 
 const ECEC_GLOSSARY = [
@@ -57,8 +53,8 @@ const ECEC_GLOSSARY = [
 async function initDatabase() {
   const db = getDb();
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
+  const schema = [
+    `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL COLLATE NOCASE,
       password_hash TEXT,
@@ -68,9 +64,8 @@ async function initDatabase() {
       active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       last_login TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS articles (
+    )`,
+    `CREATE TABLE IF NOT EXISTS articles (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       summary TEXT,
@@ -83,17 +78,15 @@ async function initDatabase() {
       drive_file_id TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS glossary (
+    )`,
+    `CREATE TABLE IF NOT EXISTS glossary (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       term TEXT UNIQUE NOT NULL,
       definition TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
+    )`,
+    `CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
       id UNINDEXED,
       title,
       summary,
@@ -102,26 +95,22 @@ async function initDatabase() {
       tags,
       content=articles,
       content_rowid=rowid
-    );
-
-    CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
+    )`,
+    `CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
       INSERT INTO articles_fts(rowid, id, title, summary, content, category, tags)
       VALUES (new.rowid, new.id, new.title, new.summary, new.content, new.category, new.tags);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
       INSERT INTO articles_fts(articles_fts, rowid, id, title, summary, content, category, tags)
       VALUES('delete', old.rowid, old.id, old.title, old.summary, old.content, old.category, old.tags);
       INSERT INTO articles_fts(rowid, id, title, summary, content, category, tags)
       VALUES (new.rowid, new.id, new.title, new.summary, new.content, new.category, new.tags);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS articles_ad AFTER DELETE ON articles BEGIN
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS articles_ad AFTER DELETE ON articles BEGIN
       INSERT INTO articles_fts(articles_fts, rowid, id, title, summary, content, category, tags)
       VALUES('delete', old.rowid, old.id, old.title, old.summary, old.content, old.category, old.tags);
-    END;
-
-    CREATE TABLE IF NOT EXISTS feedback (
+    END`,
+    `CREATE TABLE IF NOT EXISTS feedback (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id TEXT NOT NULL,
       article_title TEXT NOT NULL,
@@ -131,9 +120,8 @@ async function initDatabase() {
       submitted_by TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS article_logs (
+    )`,
+    `CREATE TABLE IF NOT EXISTS article_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id TEXT NOT NULL,
       article_title TEXT NOT NULL,
@@ -141,9 +129,8 @@ async function initDatabase() {
       changes_summary TEXT DEFAULT '',
       changed_by TEXT,
       created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS article_files (
+    )`,
+    `CREATE TABLE IF NOT EXISTS article_files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id TEXT NOT NULL,
       filename TEXT NOT NULL,
@@ -152,28 +139,34 @@ async function initDatabase() {
       data TEXT NOT NULL,
       display_mode TEXT DEFAULT 'download',
       created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
+    )`,
+  ];
 
-  // Seed glossary terms if empty
-  const glossaryCount = db.prepare('SELECT COUNT(*) as n FROM glossary').get().n;
-  if (glossaryCount === 0) {
-    const insertTerm = db.prepare('INSERT OR IGNORE INTO glossary (term, definition) VALUES (?, ?)');
-    const seedAll = db.transaction(() => {
-      ECEC_GLOSSARY.forEach(({ term, definition }) => insertTerm.run(term, definition));
-    });
-    seedAll();
+  for (const sql of schema) {
+    await db.execute(sql);
+  }
+
+  const countRes = await db.execute('SELECT COUNT(*) as n FROM glossary');
+  if (Number(countRes.rows[0].n) === 0) {
+    await db.batch(
+      ECEC_GLOSSARY.map(({ term, definition }) => ({
+        sql: 'INSERT OR IGNORE INTO glossary (term, definition) VALUES (?, ?)',
+        args: [term, definition]
+      })),
+      'write'
+    );
     console.log(`✓ Glossary seeded with ${ECEC_GLOSSARY.length} ECEC terms`);
   }
 
   const adminEmail = process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au';
   const adminPassword = process.env.ADMIN_PASSWORD || 'RawTalent2024!';
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail);
-
-  if (!existing) {
+  const existRes = await db.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: [adminEmail] });
+  if (!existRes.rows[0]) {
     const hash = await bcrypt.hash(adminPassword, 12);
-    db.prepare(`INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, 'Joy — Administrator', 'admin')`)
-      .run(adminEmail, hash);
+    await db.execute({
+      sql: `INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, 'Joy — Administrator', 'admin')`,
+      args: [adminEmail, hash]
+    });
     console.log(`✓ Admin account created: ${adminEmail}`);
   }
 

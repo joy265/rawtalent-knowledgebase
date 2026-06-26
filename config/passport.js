@@ -6,10 +6,10 @@ const { getDb } = require('../db/database');
 
 passport.serializeUser((user, done) => done(null, user.id));
 
-passport.deserializeUser((id, done) => {
+passport.deserializeUser(async (id, done) => {
   try {
-    const user = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
-    done(null, user || false);
+    const result = await getDb().execute({ sql: 'SELECT * FROM users WHERE id = ?', args: [id] });
+    done(null, result.rows[0] || false);
   } catch (err) {
     done(err);
   }
@@ -17,7 +17,11 @@ passport.deserializeUser((id, done) => {
 
 passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
   try {
-    const user = getDb().prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(email.toLowerCase().trim());
+    const result = await getDb().execute({
+      sql: 'SELECT * FROM users WHERE email = ? AND active = 1',
+      args: [email.toLowerCase().trim()]
+    });
+    const user = result.rows[0];
     if (!user || !user.password_hash) {
       return done(null, false, { message: 'Invalid email or password.' });
     }
@@ -42,16 +46,23 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       }
 
       const db = getDb();
-      let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      let userRes = await db.execute({ sql: 'SELECT * FROM users WHERE email = ?', args: [email] });
+      let user = userRes.rows[0];
 
       if (!user) {
-        db.prepare(`INSERT INTO users (email, name, google_id, role, active) VALUES (?, ?, ?, 'user', 1)`)
-          .run(email, profile.displayName || email.split('@')[0], profile.id);
-        user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        await db.execute({
+          sql: `INSERT INTO users (email, name, google_id, role, active) VALUES (?, ?, ?, 'user', 1)`,
+          args: [email, profile.displayName || email.split('@')[0], profile.id]
+        });
+        userRes = await db.execute({ sql: 'SELECT * FROM users WHERE email = ?', args: [email] });
+        user = userRes.rows[0];
       } else if (!user.google_id) {
-        db.prepare('UPDATE users SET google_id = ?, name = COALESCE(NULLIF(name,""), ?) WHERE email = ?')
-          .run(profile.id, profile.displayName, email);
-        user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        await db.execute({
+          sql: 'UPDATE users SET google_id = ?, name = COALESCE(NULLIF(name,""), ?) WHERE email = ?',
+          args: [profile.id, profile.displayName, email]
+        });
+        userRes = await db.execute({ sql: 'SELECT * FROM users WHERE email = ?', args: [email] });
+        user = userRes.rows[0];
       }
 
       if (!user.active) return done(null, false, { message: 'Your account has been disabled.' });
