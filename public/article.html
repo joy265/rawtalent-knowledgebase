@@ -472,40 +472,55 @@
 
       const sorted = [...glossaryTerms].sort((a, b) => b.term.length - a.term.length);
       const foundTerms = [];
-      const alreadyHighlighted = new Set(); // each term highlighted once only
+      const alreadyHighlighted = new Set();
 
       function walkTextNodes(node) {
         if (node.nodeType === Node.TEXT_NODE) {
-          let result = node.textContent;
-          let replaced = false;
+          const text = node.textContent;
 
+          // Find the leftmost matching term not yet highlighted
+          let firstMatch = null;
+          let firstIndex = Infinity;
           for (const { term, definition } of sorted) {
-            const key = term.toLowerCase();
-            if (alreadyHighlighted.has(key)) continue; // skip if already done
-
+            if (alreadyHighlighted.has(term.toLowerCase())) continue;
             const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\b(${escaped})\\b`, 'gi');
-            if (!regex.test(result)) continue;
+            const m = new RegExp(`\\b(${escaped})\\b`, 'i').exec(text);
+            if (m && m.index < firstIndex) {
+              firstIndex = m.index;
+              firstMatch = { term, definition, match: m };
+            }
+          }
+          if (!firstMatch) return;
 
-            // Replace only the first match in this text node
-            let firstDone = false;
-            result = result.replace(new RegExp(`\\b(${escaped})\\b`, 'gi'), (match) => {
-              if (firstDone) return match;
-              firstDone = true;
-              replaced = true;
-              alreadyHighlighted.add(key);
-              foundTerms.push({ term, definition });
-              return `<span class="glossary-term">${match}<span class="glossary-tip">${escHtml(definition)}</span></span>`;
-            });
+          const { term, definition, match } = firstMatch;
+          alreadyHighlighted.add(term.toLowerCase());
+          foundTerms.push({ term, definition });
+
+          // Build DOM nodes — textContent for the tip prevents any nested highlighting
+          const parent = node.parentNode;
+          const termSpan = document.createElement('span');
+          termSpan.className = 'glossary-term';
+          termSpan.appendChild(document.createTextNode(match[0]));
+          const tip = document.createElement('span');
+          tip.className = 'glossary-tip';
+          tip.textContent = definition;
+          termSpan.appendChild(tip);
+
+          if (firstIndex > 0) parent.insertBefore(document.createTextNode(text.slice(0, firstIndex)), node);
+          parent.insertBefore(termSpan, node);
+          const afterText = text.slice(firstIndex + match[0].length);
+          if (afterText) {
+            const afterNode = document.createTextNode(afterText);
+            parent.insertBefore(afterNode, node);
+            parent.removeChild(node);
+            walkTextNodes(afterNode); // keep looking for terms in the remainder
+          } else {
+            parent.removeChild(node);
           }
 
-          if (replaced) {
-            const span = document.createElement('span');
-            span.innerHTML = result;
-            node.parentNode.replaceChild(span, node);
-          }
         } else if (
           node.nodeType === Node.ELEMENT_NODE &&
+          !node.classList.contains('glossary-tip') && // never walk inside a tooltip
           !['A', 'CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(node.tagName)
         ) {
           Array.from(node.childNodes).forEach(walkTextNodes);
