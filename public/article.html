@@ -472,25 +472,31 @@
 
       const sorted = [...glossaryTerms].sort((a, b) => b.term.length - a.term.length);
       const foundTerms = [];
+      const alreadyHighlighted = new Set(); // each term highlighted once only
 
       function walkTextNodes(node) {
         if (node.nodeType === Node.TEXT_NODE) {
-          let text = node.textContent;
+          let result = node.textContent;
           let replaced = false;
-          let result = text;
 
           for (const { term, definition } of sorted) {
+            const key = term.toLowerCase();
+            if (alreadyHighlighted.has(key)) continue; // skip if already done
+
             const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(`\\b(${escaped})\\b`, 'gi');
-            if (regex.test(result)) {
-              result = result.replace(regex, (match) => {
-                replaced = true;
-                if (!foundTerms.find(t => t.term.toLowerCase() === term.toLowerCase())) {
-                  foundTerms.push({ term, definition });
-                }
-                return `<span class="glossary-term">${match}<span class="glossary-tip">${escHtml(definition)}</span></span>`;
-              });
-            }
+            if (!regex.test(result)) continue;
+
+            // Replace only the first match in this text node
+            let firstDone = false;
+            result = result.replace(new RegExp(`\\b(${escaped})\\b`, 'gi'), (match) => {
+              if (firstDone) return match;
+              firstDone = true;
+              replaced = true;
+              alreadyHighlighted.add(key);
+              foundTerms.push({ term, definition });
+              return `<span class="glossary-term">${match}<span class="glossary-tip">${escHtml(definition)}</span></span>`;
+            });
           }
 
           if (replaced) {

@@ -1063,6 +1063,9 @@ button { cursor: pointer; font-family: inherit; }
   border: 6px solid transparent;
   border-top-color: var(--navy);
 }
+.glossary-term:hover {
+  z-index: 300;
+}
 .glossary-term:hover .glossary-tip {
   visibility: visible;
   opacity: 1;
