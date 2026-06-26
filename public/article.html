@@ -484,7 +484,9 @@
           for (const { term, definition } of sorted) {
             if (alreadyHighlighted.has(term.toLowerCase())) continue;
             const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const m = new RegExp(`\\b(${escaped})\\b`, 'i').exec(text);
+            // All-caps terms (ACT, DNU, WWCC…) match case-sensitively; others are case-insensitive
+            const isAllCaps = term === term.toUpperCase() && /[A-Z]/.test(term);
+            const m = new RegExp(`\\b(${escaped})\\b`, isAllCaps ? '' : 'i').exec(text);
             if (m && m.index < firstIndex) {
               firstIndex = m.index;
               firstMatch = { term, definition, match: m };
