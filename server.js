@@ -41,7 +41,9 @@ app.use('/api/admin', require('./routes/admin'));
 
 function guardRoute(req, res, file, adminOnly = false) {
   if (!req.isAuthenticated()) return res.redirect('/login.html');
-  if (adminOnly && req.user.role !== 'admin') return res.status(403).sendFile(path.join(__dirname, 'public', '403.html'));
+  if (adminOnly && req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+    return res.status(403).sendFile(path.join(__dirname, 'public', '403.html'));
+  }
   res.sendFile(path.join(__dirname, 'public', file));
 }
 

@@ -160,14 +160,17 @@ async function initDatabase() {
 
   const adminEmail = process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au';
   const adminPassword = process.env.ADMIN_PASSWORD || 'RawTalent2024!';
-  const existRes = await db.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: [adminEmail] });
+  const existRes = await db.execute({ sql: 'SELECT id, role FROM users WHERE email = ?', args: [adminEmail] });
   if (!existRes.rows[0]) {
     const hash = await bcrypt.hash(adminPassword, 12);
     await db.execute({
-      sql: `INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, 'Joy — Administrator', 'admin')`,
+      sql: `INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, 'Joy — Administrator', 'super_admin')`,
       args: [adminEmail, hash]
     });
-    console.log(`✓ Admin account created: ${adminEmail}`);
+    console.log(`✓ Super admin account created: ${adminEmail}`);
+  } else if (existRes.rows[0].role === 'admin') {
+    await db.execute({ sql: "UPDATE users SET role = 'super_admin' WHERE email = ?", args: [adminEmail] });
+    console.log(`✓ Upgraded ${adminEmail} to super_admin`);
   }
 
   console.log('✓ Database ready');

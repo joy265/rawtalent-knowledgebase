@@ -80,31 +80,25 @@
           <span class="admin-nav-icon">✏️</span> New Article
         </div>
       </div>
-      <div class="admin-nav-section">
+      <div class="admin-nav-section super-admin-only" style="display:none">
         <div class="admin-nav-label">Access</div>
         <div class="admin-nav-item" onclick="showSection('users', this)">
           <span class="admin-nav-icon">👥</span> Users
         </div>
       </div>
-      <div class="admin-nav-section">
+      <div class="admin-nav-section super-admin-only" style="display:none">
         <div class="admin-nav-label">Knowledge</div>
         <div class="admin-nav-item" onclick="showSection('glossary', this)">
           <span class="admin-nav-icon">📖</span> Glossary
         </div>
       </div>
-      <div class="admin-nav-section">
+      <div class="admin-nav-section super-admin-only" style="display:none">
         <div class="admin-nav-label">Insights</div>
         <div class="admin-nav-item" onclick="showSection('feedback', this)">
           <span class="admin-nav-icon">💬</span> Feedback
         </div>
         <div class="admin-nav-item" onclick="showSection('logs', this)">
           <span class="admin-nav-icon">📋</span> Change Logs
-        </div>
-      </div>
-      <div class="admin-nav-section">
-        <div class="admin-nav-label">System</div>
-        <div class="admin-nav-item" onclick="triggerSync()">
-          <span class="admin-nav-icon">🔄</span> Sync from Drive
         </div>
       </div>
     </aside>
@@ -131,8 +125,7 @@
           <div style="font-weight:700;font-size:15px;margin-bottom:6px;color:var(--navy)">Quick Actions</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
             <button class="btn-add" onclick="showSection('new-article', document.querySelector('[onclick*=new-article]'))">✏️ Write New Article</button>
-            <button class="btn-secondary" onclick="showSection('users', document.querySelector('[onclick*=users]'))">👥 Manage Users</button>
-            <button class="btn-secondary" onclick="triggerSync()">🔄 Sync from Google Drive</button>
+            <button class="btn-secondary super-admin-only" style="display:none" onclick="showSection('users', document.querySelector('[onclick*=users]'))">👥 Manage Users</button>
           </div>
         </div>
       </div>
@@ -489,8 +482,8 @@
           <div class="form-group-modal">
             <label class="form-label-modal">Role</label>
             <select id="userRole" class="form-control">
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+              <option value="user">User (view only)</option>
+              <option value="admin">Admin (edit articles)</option>
             </select>
           </div>
         </div>
@@ -595,20 +588,29 @@
     }
 
     // ── Init ──────────────────────────────────────────────────────
+    let currentUserRole = '';
+
     async function init() {
       try {
         const me = await fetch('/auth/me').then(r => r.json());
-        if (me.error || me.role !== 'admin') { location.href = '/'; return; }
+        if (me.error || (me.role !== 'admin' && me.role !== 'super_admin')) { location.href = '/'; return; }
+        currentUserRole = me.role;
         document.getElementById('navAvatar').textContent = (me.name || me.email)[0].toUpperCase();
         document.getElementById('adminName').textContent = me.name || me.email.split('@')[0];
+        applyRoleVisibility();
       } catch { location.href = '/login.html'; return; }
 
       loadStats();
       loadArticles();
-      loadUsers();
+      if (currentUserRole === 'super_admin') loadUsers();
       loadCategoriesForDatalist();
       loadTagsForDatalist();
-      checkDriveStatus();
+    }
+
+    function applyRoleVisibility() {
+      if (currentUserRole === 'super_admin') {
+        document.querySelectorAll('.super-admin-only').forEach(el => el.style.display = '');
+      }
     }
 
     // ── Document Upload ───────────────────────────────────────────
@@ -701,7 +703,13 @@
     }
 
     // ── Navigation ────────────────────────────────────────────────
+    const superAdminSections = ['users', 'glossary', 'feedback', 'logs'];
+
     function showSection(id, el) {
+      if (superAdminSections.includes(id) && currentUserRole !== 'super_admin') {
+        showSection('articles', document.querySelector('[onclick*="articles"]'));
+        return;
+      }
       document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
       document.querySelectorAll('.admin-nav-item').forEach(n => n.classList.remove('active'));
       document.getElementById(`section-${id}`).classList.add('active');
@@ -993,7 +1001,7 @@
         <tr>
           <td style="font-weight:600">${escHtml(u.name || '—')}</td>
           <td style="font-size:13px">${escHtml(u.email)}</td>
-          <td><span class="badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role}</span></td>
+          <td><span class="badge ${u.role === 'super_admin' ? 'badge-super' : u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role === 'super_admin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'User'}</span></td>
           <td><span class="badge ${u.active ? 'badge-published' : 'badge-draft'}">${u.active ? 'Active' : 'Disabled'}</span></td>
           <td style="font-size:13px;color:var(--text-muted)">${u.last_login ? fmtDate(u.last_login) : 'Never'}</td>
           <td>

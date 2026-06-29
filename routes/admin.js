@@ -6,7 +6,7 @@ const path = require('path');
 const multer = require('multer');
 const mammoth = require('mammoth');
 const { getDb } = require('../db/database');
-const { requireAdmin } = require('../middleware/authMiddleware');
+const { requireAdmin, requireSuperAdmin } = require('../middleware/authMiddleware');
 const { saveArticleToDrive, deleteArticleFromDrive, syncFromDrive } = require('../services/driveService');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -34,8 +34,8 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// ── Users ─────────────────────────────────────────────────────────
-router.get('/users', async (req, res) => {
+// ── Users (super_admin only) ──────────────────────────────────────
+router.get('/users', requireSuperAdmin, async (req, res) => {
   try {
     const result = await getDb().execute(
       'SELECT id, email, name, role, active, created_at, last_login FROM users ORDER BY created_at DESC'
@@ -46,7 +46,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-router.post('/users', async (req, res) => {
+router.post('/users', requireSuperAdmin, async (req, res) => {
   const { email, name, password, role = 'user' } = req.body;
   if (!email || !name) return res.status(400).json({ error: 'Email and name are required' });
   if (!email.toLowerCase().endsWith('@rawtalent.com.au')) {
@@ -69,7 +69,7 @@ router.post('/users', async (req, res) => {
   }
 });
 
-router.put('/users/:id', async (req, res) => {
+router.put('/users/:id', requireSuperAdmin, async (req, res) => {
   const { name, role, active, password } = req.body;
   try {
     const db = getDb();
@@ -96,7 +96,7 @@ router.put('/users/:id', async (req, res) => {
   }
 });
 
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', requireSuperAdmin, async (req, res) => {
   try {
     const db = getDb();
     const targetRes = await db.execute({ sql: 'SELECT email FROM users WHERE id = ?', args: [req.params.id] });
@@ -260,8 +260,8 @@ router.get('/drive-status', async (req, res) => {
   }
 });
 
-// ── Glossary ──────────────────────────────────────────────────────
-router.get('/glossary', async (req, res) => {
+// ── Glossary (super_admin only) ───────────────────────────────────
+router.get('/glossary', requireSuperAdmin, async (req, res) => {
   try {
     const result = await getDb().execute('SELECT * FROM glossary ORDER BY term ASC');
     res.json(result.rows);
@@ -270,7 +270,7 @@ router.get('/glossary', async (req, res) => {
   }
 });
 
-router.post('/glossary', async (req, res) => {
+router.post('/glossary', requireSuperAdmin, async (req, res) => {
   const { term, definition } = req.body;
   if (!term || !definition) return res.status(400).json({ error: 'Term and definition are required' });
   try {
@@ -281,7 +281,7 @@ router.post('/glossary', async (req, res) => {
   }
 });
 
-router.put('/glossary/:id', async (req, res) => {
+router.put('/glossary/:id', requireSuperAdmin, async (req, res) => {
   const { term, definition } = req.body;
   if (!term || !definition) return res.status(400).json({ error: 'Term and definition are required' });
   try {
@@ -298,7 +298,7 @@ router.put('/glossary/:id', async (req, res) => {
   }
 });
 
-router.delete('/glossary/:id', async (req, res) => {
+router.delete('/glossary/:id', requireSuperAdmin, async (req, res) => {
   try {
     await getDb().execute({ sql: 'DELETE FROM glossary WHERE id = ?', args: [req.params.id] });
     res.json({ success: true });
@@ -307,8 +307,8 @@ router.delete('/glossary/:id', async (req, res) => {
   }
 });
 
-// ── Feedback ──────────────────────────────────────────────────────
-router.get('/feedback', async (req, res) => {
+// ── Feedback (super_admin only) ───────────────────────────────────
+router.get('/feedback', requireSuperAdmin, async (req, res) => {
   try {
     const result = await getDb().execute('SELECT * FROM feedback ORDER BY created_at DESC');
     res.json(result.rows);
@@ -317,7 +317,7 @@ router.get('/feedback', async (req, res) => {
   }
 });
 
-router.put('/feedback/:id', async (req, res) => {
+router.put('/feedback/:id', requireSuperAdmin, async (req, res) => {
   const { status, adminComments } = req.body;
   try {
     await getDb().execute({
@@ -330,7 +330,7 @@ router.put('/feedback/:id', async (req, res) => {
   }
 });
 
-router.delete('/feedback/:id', async (req, res) => {
+router.delete('/feedback/:id', requireSuperAdmin, async (req, res) => {
   try {
     await getDb().execute({ sql: 'DELETE FROM feedback WHERE id = ?', args: [req.params.id] });
     res.json({ success: true });
@@ -339,8 +339,8 @@ router.delete('/feedback/:id', async (req, res) => {
   }
 });
 
-// ── Article Logs ──────────────────────────────────────────────────
-router.get('/article-logs', async (req, res) => {
+// ── Article Logs (super_admin only) ──────────────────────────────
+router.get('/article-logs', requireSuperAdmin, async (req, res) => {
   try {
     const { articleId } = req.query;
     const result = articleId
@@ -352,7 +352,7 @@ router.get('/article-logs', async (req, res) => {
   }
 });
 
-router.delete('/article-logs/:id', async (req, res) => {
+router.delete('/article-logs/:id', requireSuperAdmin, async (req, res) => {
   try {
     await getDb().execute({ sql: 'DELETE FROM article_logs WHERE id = ?', args: [req.params.id] });
     res.json({ success: true });
