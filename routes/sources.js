@@ -110,6 +110,22 @@ router.post('/:id/refresh', async (req, res) => {
   }
 });
 
+// Paste content manually (for sites that block scraping)
+router.post('/paste', async (req, res) => {
+  const { title, content, origin } = req.body;
+  if (!title?.trim() || !content?.trim()) return res.status(400).json({ error: 'Title and content are required' });
+  try {
+    const id = uuidv4();
+    await getDb().execute({
+      sql: 'INSERT INTO knowledge_sources (id, type, title, origin, content, added_by) VALUES (?, ?, ?, ?, ?, ?)',
+      args: [id, 'website', title.trim(), origin?.trim() || '', content.trim(), req.user.email]
+    });
+    res.json({ success: true, id, title: title.trim() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Delete a source
 router.delete('/:id', async (req, res) => {
   try {
@@ -123,7 +139,12 @@ router.delete('/:id', async (req, res) => {
 // ── Web fetch helper ──────────────────────────────────────────────
 async function fetchWebText(url) {
   const response = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 RawTalentBot/1.0 (internal knowledge base crawler)' },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-AU,en;q=0.9',
+      'Cache-Control': 'no-cache'
+    },
     signal: AbortSignal.timeout(15000)
   });
   if (!response.ok) throw new Error(`HTTP ${response.status} — could not fetch ${url}`);
