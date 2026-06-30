@@ -8,6 +8,114 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+    .mode-chip {
+      padding: 7px 20px;
+      border-radius: 999px;
+      border: 1.5px solid rgba(255,255,255,.2);
+      background: transparent;
+      color: rgba(255,255,255,.6);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .mode-chip.active {
+      background: white;
+      color: var(--navy);
+      border-color: white;
+    }
+    .mode-chip:not(.active):hover {
+      background: rgba(255,255,255,.1);
+      color: white;
+    }
+    .ai-ask-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .ai-ask-btn {
+      flex-shrink: 0;
+      padding: 0 22px;
+      height: 52px;
+      background: var(--orange);
+      color: white;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .ai-ask-btn:hover { opacity: .88; }
+    .ai-ask-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .ai-answer-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+      padding: 28px 32px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+    .ai-answer-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 16px;
+    }
+    .ai-answer-text {
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+    .ai-sources-heading {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 20px 0 10px;
+    }
+    .ai-source-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--navy);
+      margin: 0 6px 6px 0;
+      text-decoration: none;
+      transition: border-color .15s;
+    }
+    .ai-source-chip:hover { border-color: var(--orange); color: var(--orange); }
+    .ai-disclaimer {
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: var(--gray-50);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
 </head>
 <body>
 
@@ -19,7 +127,6 @@
     <div class="nav-actions">
       <div class="nav-user">
         <div class="nav-avatar" id="navAvatar">?</div>
-        <span id="navName" style="display:none"></span>
       </div>
       <button class="nav-btn ghost" onclick="logout()">Sign Out</button>
       <button class="nav-btn admin-btn" id="adminNavBtn" onclick="location.href='/admin'" style="display:none">
@@ -30,31 +137,39 @@
 
   <div class="search-hero">
     <h1 class="search-hero-title">How can we help you<span>?</span></h1>
-    <p class="search-hero-sub">Search the RawTalent knowledge base for answers, guides, and resources</p>
-    <div class="search-box-wrap">
-      <input
-        type="text"
-        id="searchInput"
-        class="search-box"
+    <p class="search-hero-sub">Search articles or ask the AI a question</p>
+
+    <div class="mode-toggle">
+      <button class="mode-chip active" id="modeSearch" onclick="setMode('search')">🔍 Search Articles</button>
+      <button class="mode-chip" id="modeAI" onclick="setMode('ai')">✨ Ask AI</button>
+    </div>
+
+    <div id="searchWrap" class="search-box-wrap">
+      <input type="text" id="searchInput" class="search-box"
         placeholder="Search articles, topics, or keywords…"
-        autocomplete="off"
-        autofocus
-      >
+        autocomplete="off" autofocus>
       <span class="search-icon">⌕</span>
+    </div>
+
+    <div id="aiWrap" style="display:none" class="ai-ask-row">
+      <div class="search-box-wrap" style="flex:1;margin:0">
+        <input type="text" id="aiInput" class="search-box"
+          placeholder="Ask a question — e.g. What are Victoria's childcare compliance requirements?"
+          autocomplete="off">
+        <span class="search-icon">✨</span>
+      </div>
+      <button class="ai-ask-btn" id="aiAskBtn" onclick="askAI()">Ask AI</button>
     </div>
   </div>
 
-  <div class="categories-bar" id="categoriesBar">
+  <div id="categoriesBar" class="categories-bar">
     <div class="cat-chip active" data-cat="">All Topics</div>
   </div>
 
   <div class="results-area">
     <div id="resultsMeta" class="results-meta" style="display:none"></div>
     <div id="resultsList">
-      <div class="loading-spinner">
-        <div class="spinner"></div>
-        Loading…
-      </div>
+      <div class="loading-spinner"><div class="spinner"></div>Loading…</div>
     </div>
   </div>
 
@@ -63,25 +178,104 @@
   <script>
     let currentCategory = '';
     let searchTimeout;
-    let allCategories = [];
+    let currentMode = 'search';
 
     async function init() {
       try {
         const me = await fetch('/auth/me').then(r => r.json());
         if (me.error) { location.href = '/login.html'; return; }
         document.getElementById('navAvatar').textContent = (me.name || me.email)[0].toUpperCase();
-        document.getElementById('navName').textContent = me.name || me.email.split('@')[0];
-        if (me.role === 'admin') document.getElementById('adminNavBtn').style.display = 'inline-flex';
+        if (me.role === 'admin' || me.role === 'super_admin') {
+          document.getElementById('adminNavBtn').style.display = 'inline-flex';
+        }
       } catch { location.href = '/login.html'; return; }
-
       loadCategories();
       loadResults();
     }
 
+    // ── Mode toggle ───────────────────────────────────────────────
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('modeSearch').classList.toggle('active', mode === 'search');
+      document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
+      document.getElementById('searchWrap').style.display = mode === 'search' ? '' : 'none';
+      document.getElementById('aiWrap').style.display = mode === 'ai' ? '' : 'none';
+      document.getElementById('categoriesBar').style.display = mode === 'search' ? '' : 'none';
+      document.getElementById('resultsMeta').style.display = 'none';
+
+      if (mode === 'search') {
+        document.getElementById('resultsList').innerHTML = '';
+        loadResults();
+        setTimeout(() => document.getElementById('searchInput').focus(), 50);
+      } else {
+        document.getElementById('resultsList').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">✨</div>
+            <div class="empty-title">Ask the AI anything</div>
+            <p>Type a question above and the AI will search across all articles, documents, and reference materials to give you an answer with sources.</p>
+          </div>`;
+        setTimeout(() => document.getElementById('aiInput').focus(), 50);
+      }
+    }
+
+    // ── Ask AI ────────────────────────────────────────────────────
+    async function askAI() {
+      const question = document.getElementById('aiInput').value.trim();
+      if (!question) return;
+
+      const btn = document.getElementById('aiAskBtn');
+      const list = document.getElementById('resultsList');
+      btn.disabled = true;
+      btn.textContent = 'Thinking…';
+      list.innerHTML = `<div class="loading-spinner"><div class="spinner"></div>Searching knowledge base…</div>`;
+
+      try {
+        const res = await fetch('/api/sources/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+        const data = await res.json();
+        if (!res.ok) { throw new Error(data.error || 'Request failed'); }
+        renderAIAnswer(question, data.answer, data.sources || []);
+      } catch (err) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Something went wrong</div><p>${escHtml(err.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ask AI';
+      }
+    }
+
+    function renderAIAnswer(question, answer, sources) {
+      const sourceChips = sources.length > 0 ? `
+        <div class="ai-sources-heading">Sources used</div>
+        <div>
+          ${sources.map(s => {
+            const icon = s.type === 'website' ? '🌐' : s.type === 'document' ? '📄' : '📋';
+            const href = s.type === 'article' ? `/article?id=${s.id}` : (s.origin || '#');
+            const target = s.type === 'article' ? '' : 'target="_blank" rel="noopener"';
+            return `<a class="ai-source-chip" href="${escHtml(href)}" ${target}>${icon} ${escHtml(s.title)}</a>`;
+          }).join('')}
+        </div>
+      ` : '';
+
+      document.getElementById('resultsList').innerHTML = `
+        <div class="ai-answer-card">
+          <div class="ai-answer-label">✨ AI Answer</div>
+          <div class="ai-answer-text">${escHtml(answer)}</div>
+          ${sourceChips}
+          <div class="ai-disclaimer">AI answers are generated from your knowledge base content. Always verify compliance or regulatory information with official sources.</div>
+        </div>
+        <div style="text-align:center;margin-top:4px">
+          <button onclick="setMode('search')" style="background:none;border:none;color:var(--orange);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">← Browse all articles instead</button>
+        </div>
+      `;
+    }
+
+    // ── Search ────────────────────────────────────────────────────
     async function loadCategories() {
       try {
         const cats = await fetch('/api/articles/categories').then(r => r.json());
-        allCategories = cats;
         const bar = document.getElementById('categoriesBar');
         cats.forEach(c => {
           const chip = document.createElement('div');
@@ -105,48 +299,39 @@
       const q = document.getElementById('searchInput').value.trim();
       const meta = document.getElementById('resultsMeta');
       const list = document.getElementById('resultsList');
-
       list.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
       meta.style.display = 'none';
-
       try {
         const params = new URLSearchParams({ limit: 50 });
         if (q) params.set('q', q);
         if (currentCategory) params.set('category', currentCategory);
-
         const results = await fetch(`/api/articles/search?${params}`).then(r => r.json());
-
         if (results.error) { location.href = '/login.html'; return; }
-
         if (results.length === 0) {
           list.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon">🔍</div>
-              <div class="empty-title">${q ? `No results for "${q}"` : 'No articles yet'}</div>
-              <p>${q ? 'Try different keywords or browse by category.' : 'Check back soon — content is being added.'}</p>
+              <div class="empty-title">${q ? `No results for "${escHtml(q)}"` : 'No articles yet'}</div>
+              <p>${q ? 'Try different keywords, browse by category, or <button onclick="setMode(\'ai\')" style="background:none;border:none;color:var(--orange);font-weight:600;cursor:pointer;font-family:inherit;font-size:inherit;padding:0">ask the AI ✨</button>' : 'Check back soon — content is being added.'}</p>
             </div>`;
           return;
         }
-
         if (q) {
           meta.style.display = 'block';
           meta.innerHTML = `About <strong>${results.length}</strong> result${results.length !== 1 ? 's' : ''} for <strong>"${escHtml(q)}"</strong>`;
         }
-
         list.innerHTML = results.map(a => `
           <a class="result-card" href="/article?id=${a.id}">
             ${a.category ? `<div class="result-category">${escHtml(a.category)}</div>` : ''}
             <div class="result-title">${escHtml(a.title)}</div>
             ${a.summary ? `<div class="result-summary">${escHtml(a.summary)}</div>` : ''}
             <div class="result-footer">
-              <div class="result-tags">
-                ${(a.tags || []).slice(0, 3).map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}
-              </div>
+              <div class="result-tags">${(a.tags || []).slice(0, 3).map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
               <span class="result-date">${fmtDate(a.updated_at)}</span>
             </div>
           </a>
         `).join('');
-      } catch (err) {
+      } catch {
         list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Something went wrong</div><p>Please refresh and try again.</p></div>';
       }
     }
@@ -155,9 +340,11 @@
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(loadResults, 280);
     });
-
     document.getElementById('searchInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') { clearTimeout(searchTimeout); loadResults(); }
+    });
+    document.getElementById('aiInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') askAI();
     });
 
     async function logout() {
@@ -168,12 +355,10 @@
     function escHtml(s) {
       return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
-
     function fmtDate(iso) {
       if (!iso) return '';
-      try {
-        return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-      } catch { return ''; }
+      try { return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
+      catch { return ''; }
     }
 
     init();

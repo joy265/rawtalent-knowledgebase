@@ -140,6 +140,42 @@ async function initDatabase() {
       display_mode TEXT DEFAULT 'download',
       created_at TEXT DEFAULT (datetime('now'))
     )`,
+    `CREATE TABLE IF NOT EXISTS knowledge_sources (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      origin TEXT,
+      content TEXT NOT NULL,
+      added_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_sources_fts USING fts5(
+      id UNINDEXED, title, content,
+      content=knowledge_sources, content_rowid=rowid
+    )`,
+    `CREATE TRIGGER IF NOT EXISTS ks_ai AFTER INSERT ON knowledge_sources BEGIN
+      INSERT INTO knowledge_sources_fts(rowid, id, title, content)
+      VALUES (new.rowid, new.id, new.title, new.content);
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS ks_au AFTER UPDATE ON knowledge_sources BEGIN
+      INSERT INTO knowledge_sources_fts(knowledge_sources_fts, rowid, id, title, content)
+      VALUES('delete', old.rowid, old.id, old.title, old.content);
+      INSERT INTO knowledge_sources_fts(rowid, id, title, content)
+      VALUES (new.rowid, new.id, new.title, new.content);
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS ks_ad AFTER DELETE ON knowledge_sources BEGIN
+      INSERT INTO knowledge_sources_fts(knowledge_sources_fts, rowid, id, title, content)
+      VALUES('delete', old.rowid, old.id, old.title, old.content);
+    END`,
+    `CREATE TABLE IF NOT EXISTS ai_query_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question TEXT NOT NULL,
+      answer TEXT,
+      sources_used TEXT DEFAULT '[]',
+      asked_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
   ];
 
   for (const sql of schema) {
