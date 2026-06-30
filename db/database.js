@@ -196,7 +196,10 @@ async function initDatabase() {
 
   const adminEmail = process.env.ADMIN_EMAIL || 'joy@rawtalent.com.au';
   const adminPassword = process.env.ADMIN_PASSWORD || 'RawTalent2024!';
-  const existRes = await db.execute({ sql: 'SELECT id, role FROM users WHERE email = ?', args: [adminEmail] });
+  // Upgrade any legacy 'admin' accounts to 'super_admin' (safe — future admins are created as 'admin' via the UI)
+  await db.execute("UPDATE users SET role = 'super_admin' WHERE role = 'admin'");
+
+  const existRes = await db.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: [adminEmail] });
   if (!existRes.rows[0]) {
     const hash = await bcrypt.hash(adminPassword, 12);
     await db.execute({
@@ -204,9 +207,6 @@ async function initDatabase() {
       args: [adminEmail, hash]
     });
     console.log(`✓ Super admin account created: ${adminEmail}`);
-  } else if (existRes.rows[0].role === 'admin') {
-    await db.execute({ sql: "UPDATE users SET role = 'super_admin' WHERE email = ?", args: [adminEmail] });
-    console.log(`✓ Upgraded ${adminEmail} to super_admin`);
   }
 
   console.log('✓ Database ready');
