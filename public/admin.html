@@ -1598,21 +1598,6 @@
 
     // Extend init to also load glossary
     const _origInit = init;
-    async function init() {
-      try {
-        const me = await fetch('/auth/me').then(r => r.json());
-        if (me.error || me.role !== 'admin') { location.href = '/'; return; }
-        document.getElementById('navAvatar').textContent = (me.name || me.email)[0].toUpperCase();
-        document.getElementById('adminName').textContent = me.name || me.email.split('@')[0];
-      } catch { location.href = '/login.html'; return; }
-
-      loadStats();
-      loadArticles();
-      loadUsers();
-      loadGlossary();
-      loadCategoriesForDatalist();
-    }
-
     // ── AI Sources ────────────────────────────────────────────────
     let allSources = [];
 
