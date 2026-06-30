@@ -400,6 +400,43 @@
         </div>
       </div>
 
+      <!-- AI Sources -->
+      <div class="admin-section" id="section-sources">
+        <div class="admin-header">
+          <div>
+            <div class="admin-page-title">AI Sources</div>
+            <div class="admin-page-sub">Documents and websites the AI uses to answer questions</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+          <div style="background:white;border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:22px">
+            <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:12px">📄 Upload Document</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">PDF, DOCX, or TXT — compliance guides, policy docs, training materials</div>
+            <input type="text" id="sourceDocTitle" class="form-control" placeholder="Title (optional — defaults to filename)" style="margin-bottom:10px">
+            <input type="file" id="sourceDocInput" accept=".pdf,.docx,.txt" style="display:none" onchange="uploadSourceDoc(this)">
+            <button class="btn-add" style="width:100%" onclick="document.getElementById('sourceDocInput').click()">+ Upload Document</button>
+            <div id="sourceDocStatus" style="display:none;margin-top:10px;font-size:13px;text-align:center;color:var(--text-muted)"><span class="spinner" style="display:inline-block;margin-right:6px"></span>Processing…</div>
+          </div>
+          <div style="background:white;border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:22px">
+            <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:12px">🌐 Add Website</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Paste a URL — ACECQA pages, state regulator sites, industry references</div>
+            <input type="text" id="sourceWebTitle" class="form-control" placeholder="Title (optional)" style="margin-bottom:10px">
+            <input type="url" id="sourceWebUrl" class="form-control" placeholder="https://www.acecqa.gov.au/…" style="margin-bottom:10px">
+            <button class="btn-add" style="width:100%" onclick="addWebSource()">+ Add Website</button>
+            <div id="sourceWebStatus" style="display:none;margin-top:10px;font-size:13px;text-align:center;color:var(--text-muted)"><span class="spinner" style="display:inline-block;margin-right:6px"></span>Fetching content…</div>
+          </div>
+        </div>
+        <div class="admin-table-card">
+          <div class="admin-table-header">
+            <span style="font-weight:600;font-size:14px;color:var(--navy)">Indexed Sources</span>
+            <span id="sourcesCount" style="font-size:13px;color:var(--text-muted)"></span>
+          </div>
+          <div id="sourcesList" style="padding:8px 0">
+            <div class="loading-spinner"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -412,46 +449,6 @@
       </div>
       <div class="modal-body" id="logsModalBody" style="padding:0">
         <div class="loading-spinner" style="padding:32px"><div class="spinner"></div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- AI Sources Section -->
-  <div class="admin-section" id="section-sources">
-    <div class="admin-header">
-      <div>
-        <div class="admin-page-title">AI Sources</div>
-        <div class="admin-page-sub">Documents and websites the AI uses to answer questions</div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
-      <!-- Upload document -->
-      <div style="background:white;border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:22px">
-        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:12px">📄 Upload Document</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">PDF, DOCX, or TXT — compliance guides, policy docs, training materials</div>
-        <input type="text" id="sourceDocTitle" class="form-control" placeholder="Title (optional — defaults to filename)" style="margin-bottom:10px">
-        <input type="file" id="sourceDocInput" accept=".pdf,.docx,.txt" style="display:none" onchange="uploadSourceDoc(this)">
-        <button class="btn-add" style="width:100%" onclick="document.getElementById('sourceDocInput').click()">+ Upload Document</button>
-        <div id="sourceDocStatus" style="display:none;margin-top:10px;font-size:13px;text-align:center;color:var(--text-muted)"><span class="spinner" style="display:inline-block;margin-right:6px"></span>Processing…</div>
-      </div>
-      <!-- Add website -->
-      <div style="background:white;border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:22px">
-        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:12px">🌐 Add Website</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Paste a URL — ACECQA pages, state regulator sites, industry references</div>
-        <input type="text" id="sourceWebTitle" class="form-control" placeholder="Title (optional)" style="margin-bottom:10px">
-        <input type="url" id="sourceWebUrl" class="form-control" placeholder="https://www.acecqa.gov.au/…" style="margin-bottom:10px">
-        <button class="btn-add" style="width:100%" onclick="addWebSource()">+ Add Website</button>
-        <div id="sourceWebStatus" style="display:none;margin-top:10px;font-size:13px;text-align:center;color:var(--text-muted)"><span class="spinner" style="display:inline-block;margin-right:6px"></span>Fetching content…</div>
-      </div>
-    </div>
-    <!-- Sources list -->
-    <div class="admin-table-card">
-      <div class="admin-table-header">
-        <span style="font-weight:600;font-size:14px;color:var(--navy)">Indexed Sources</span>
-        <span id="sourcesCount" style="font-size:13px;color:var(--text-muted)"></span>
-      </div>
-      <div id="sourcesList" style="padding:8px 0">
-        <div class="loading-spinner"><div class="spinner"></div></div>
       </div>
     </div>
   </div>
