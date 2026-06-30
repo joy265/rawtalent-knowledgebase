@@ -1143,3 +1143,146 @@ button { cursor: pointer; font-family: inherit; }
   .search-hero-title { font-size: 24px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ─── Design Enhancements ─────────────────────────────────────── */
+
+/* Navbar polish */
+.navbar { border-bottom: 1px solid rgba(255,255,255,.05); }
+.nav-tag { font-size: 10px; }
+
+/* Article page — accent strip above main card */
+.article-back { font-size: 12px; letter-spacing: .3px; }
+.article-main-card {
+  border-top: 3px solid var(--orange);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* Article content — richer typography */
+.article-content h2 {
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 10px;
+  margin-top: 40px;
+}
+.article-content th {
+  background: var(--navy);
+  letter-spacing: .3px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.article-content td { vertical-align: top; }
+
+/* Sidebar heading — orange accent line */
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--navy);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+}
+.sidebar-heading::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 14px;
+  background: var(--orange);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Admin sidebar — richer active state */
+.admin-nav-item.active {
+  background: linear-gradient(90deg, rgba(61,111,255,.18) 0%, rgba(61,111,255,.06) 100%);
+  color: var(--orange-light);
+  font-weight: 600;
+  border-left: 2px solid var(--orange);
+  margin-left: -2px;
+  padding-left: 14px;
+}
+.admin-nav-item { border-left: 2px solid transparent; margin-left: -2px; }
+
+/* Admin content — bigger page titles */
+.admin-page-title { font-size: 22px; letter-spacing: -0.4px; }
+.admin-page-sub { font-size: 13px; }
+
+/* Stat cards — richer */
+.stat-card {
+  border-top: 2px solid var(--gray-200);
+  transition: border-top-color .2s, box-shadow .2s;
+}
+.stat-card:hover { border-top-color: var(--orange); box-shadow: 0 4px 20px rgba(61,111,255,.08); }
+.stat-num { font-size: 34px; }
+
+/* Buttons — better focus ring */
+.btn-add:focus-visible, .btn-secondary:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+/* Form controls */
+.form-control:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(61,111,255,.12);
+  outline: none;
+}
+
+/* Badges */
+.badge { font-size: 11px; letter-spacing: .3px; }
+.badge-super { font-size: 11px; }
+
+/* Data tables — cleaner rows */
+.data-table th {
+  background: var(--navy);
+  color: rgba(255,255,255,.8);
+  font-size: 11px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.data-table tr:hover td { background: rgba(61,111,255,.03); }
+
+/* Loading spinner — smoother */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--gray-200);
+  border-top-color: var(--orange);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+/* Toast — cleaner */
+.toast {
+  background: var(--navy);
+  color: white;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  margin-bottom: 8px;
+  border-left: 3px solid var(--orange);
+  animation: slideIn .2s ease;
+}
+.toast.success { border-left-color: #22c55e; }
+.toast.error { border-left-color: #ef4444; }
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Error page */
+.error-page {
+  text-align: center;
+  padding: 100px 24px;
+}
+.error-code {
+  font-size: 72px;
+  font-weight: 800;
+  color: var(--gray-200);
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.error-title { font-size: 22px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+.error-sub { color: var(--text-muted); font-size: 14px; }
