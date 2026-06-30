@@ -136,23 +136,29 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// ── Web fetch helper ──────────────────────────────────────────────
+// ── Web fetch helper — uses Jina Reader to bypass bot protection ──
 async function fetchWebText(url) {
-  const response = await fetch(url, {
+  // Jina Reader renders the full page (including JS) and bypasses most bot protection
+  const jinaUrl = `https://r.jina.ai/${url}`;
+  const response = await fetch(jinaUrl, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-AU,en;q=0.9',
-      'Cache-Control': 'no-cache'
+      'Accept': 'text/plain',
+      'X-Return-Format': 'text',
+      'X-Timeout': '25'
     },
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(30000)
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status} — could not fetch ${url}`);
-  const html = await response.text();
-  const $ = cheerioLoad(html);
-  $('script, style, nav, footer, header, noscript, iframe, [role="navigation"]').remove();
-  const title = $('title').text().trim() || $('h1').first().text().trim() || url;
-  const text = $('body').text().replace(/\s+/g, ' ').trim();
+  if (!response.ok) throw new Error(`Could not retrieve content from ${url} (status ${response.status})`);
+  const raw = await response.text();
+
+  // Jina returns lines like "Title: ..." and "URL Source: ..." at the top
+  const titleMatch = raw.match(/^Title:\s*(.+)/m);
+  const title = titleMatch ? titleMatch[1].trim() : url;
+
+  // Strip the metadata header lines, keep the actual content
+  const contentStart = raw.indexOf('\n\n');
+  const text = (contentStart > -1 ? raw.slice(contentStart) : raw).trim();
+
   return { title, text };
 }
 
