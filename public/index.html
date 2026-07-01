@@ -364,6 +364,66 @@
       line-height: 1.5;
     }
 
+    /* Conversation thread */
+    .conv-thread { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+    .conv-user-msg {
+      align-self: flex-end;
+      max-width: 75%;
+      background: var(--navy);
+      color: white;
+      border-radius: 18px 18px 4px 18px;
+      padding: 12px 18px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .conv-reply-box {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 4px;
+      padding-top: 16px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .conv-reply-box .hero-input { height: 46px; padding: 0 18px; font-size: 14px; }
+    .conv-reply-box .hero-ask-btn { height: 46px; padding: 0 20px; font-size: 13px; }
+    .conv-new-btn {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid var(--gray-300);
+      border-radius: 999px;
+      padding: 0 16px;
+      height: 46px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .conv-new-btn:hover { border-color: var(--navy); color: var(--navy); }
+    .ai-thinking {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      background: white;
+      border: 1.5px solid rgba(61,111,255,.2);
+      border-radius: var(--radius-lg);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .thinking-dots::after {
+      content: '';
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%,20%  { content: ''; }
+      40%     { content: '.'; }
+      60%     { content: '..'; }
+      80%,100%{ content: '...'; }
+    }
+
     /* Empty / loading */
     .empty-wrap {
       text-align: center;
@@ -452,6 +512,8 @@
     let currentMode = 'search';
     let currentCat = '';
     let searchTimer;
+    let conversationHistory = [];   // Claude messages array (for multi-turn)
+    let conversationSources = [];   // sources from first turn (reused throughout)
 
     async function init() {
       try {
@@ -517,83 +579,127 @@
     }
 
     // ── Ask AI ────────────────────────────────────────────────────
+    let conversationTurns = [];
+
     async function askAI() {
       const q = document.getElementById('aiInput').value.trim();
       if (!q) return;
+      conversationHistory = [];
+      conversationSources = [];
+      conversationTurns = [];
+      document.getElementById('aiInput').value = '';
+      await sendToAI(q);
+    }
+
+    async function askFollowUp() {
+      const input = document.getElementById('replyInput');
+      if (!input) return;
+      const q = input.value.trim();
+      if (!q) return;
+      input.value = '';
+      await sendToAI(q);
+    }
+
+    function newQuestion() {
+      conversationHistory = [];
+      conversationSources = [];
+      conversationTurns = [];
+      document.getElementById('resultsList').innerHTML = `
+        <div class="empty-wrap">
+          <div class="empty-icon">✨</div>
+          <div class="empty-title">Ask any work-related question</div>
+          <p style="font-size:14px;margin-top:4px">Try: "What are the WWCC requirements for Victoria?" or "How do I handle a no-show?"</p>
+        </div>`;
+      document.getElementById('aiInput').value = '';
+      setTimeout(() => document.getElementById('aiInput').focus(), 50);
+    }
+
+    async function sendToAI(question) {
       const btn = document.getElementById('aiBtn');
-      const list = document.getElementById('resultsList');
-      btn.disabled = true;
-      btn.textContent = 'Thinking…';
-      list.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div></div>`;
+      if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+      conversationTurns.push({ question, answer: null });
+      renderThread();
       try {
         const res = await fetch('/api/sources/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: q })
+          body: JSON.stringify({ question, history: conversationHistory })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Request failed');
-        renderAIAnswer(data.answer, data.sources || []);
+        conversationHistory = data.history;
+        if (data.sources && data.sources.length > 0) conversationSources = data.sources;
+        conversationTurns[conversationTurns.length - 1].answer = data.answer;
+        renderThread();
       } catch (err) {
-        list.innerHTML = `<div class="empty-wrap"><div class="empty-icon">⚠️</div><div class="empty-title">Something went wrong</div><p>${escHtml(err.message)}</p></div>`;
+        conversationTurns[conversationTurns.length - 1].answer = `Something went wrong: ${err.message}`;
+        renderThread();
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Ask AI';
+        if (btn) { btn.disabled = false; btn.textContent = 'Ask AI'; }
+        setTimeout(() => document.getElementById('replyInput')?.focus(), 80);
       }
     }
 
-    function renderAIAnswer(answer, sources) {
-      // Build href lookup keyed by 1-based source number
-      const sourceHrefs = {};
-      sources.forEach((s, i) => {
-        sourceHrefs[i + 1] = s.type === 'article' ? `/article?id=${s.id}` : (s.origin || '#');
+    function processAnswer(text, sources) {
+      let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\[Source (\d+)\]/g, (match, n) => {
+        const num = parseInt(n);
+        const s = (sources || [])[num - 1];
+        if (!s) return match;
+        const href = s.type === 'article' ? `/article?id=${s.id}` : (s.origin || '#');
+        const target = s.type !== 'article' ? 'target="_blank" rel="noopener"' : '';
+        return `<a class="source-ref" href="${href.replace(/"/g,'&quot;')}" ${target} title="${escHtml(s.title)}">${num}</a>`;
       });
+      const paras = html.split(/\n{2,}/);
+      return paras.length > 1
+        ? paras.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
+        : `<p>${html.replace(/\n/g, '<br>')}</p>`;
+    }
 
-      function processAnswer(text) {
-        // Escape HTML
-        let html = text
-          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        // Bold: **text**
-        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // Inline [Source N] → linked superscript badge
-        html = html.replace(/\[Source (\d+)\]/g, (match, n) => {
-          const num = parseInt(n);
-          const s = sources[num - 1];
-          if (!s) return match;
-          const href = sourceHrefs[num];
-          const target = s.type !== 'article' ? 'target="_blank" rel="noopener"' : '';
-          return `<a class="source-ref" href="${href.replace(/"/g,'&quot;')}" ${target} title="${escHtml(s.title)}">${num}</a>`;
-        });
-        // Paragraphs: split on double newline
-        const paras = html.split(/\n{2,}/);
-        if (paras.length > 1) {
-          return paras.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    function renderSourceChips(sources) {
+      if (!sources || !sources.length) return '';
+      return `<div class="ai-sources-label">Sources used</div><div>${sources.map((s, i) => {
+        const icon = s.type === 'website' ? '🌐' : s.type === 'document' ? '📄' : '📋';
+        const href = s.type === 'article' ? `/article?id=${s.id}` : (s.origin || '#');
+        const ext = s.type !== 'article' ? 'target="_blank" rel="noopener"' : '';
+        return `<a class="ai-source-tag" href="${escHtml(href)}" ${ext}><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:var(--orange);color:white;border-radius:50%;font-size:9px;font-weight:700;flex-shrink:0">${i+1}</span>${icon} ${escHtml(s.title)}</a>`;
+      }).join('')}</div>`;
+    }
+
+    function renderThread() {
+      const list = document.getElementById('resultsList');
+      const isWaiting = conversationTurns.length > 0 && conversationTurns[conversationTurns.length - 1].answer === null;
+      let html = '<div class="conv-thread">';
+      conversationTurns.forEach((turn, idx) => {
+        html += `<div class="conv-user-msg">${escHtml(turn.question)}</div>`;
+        if (turn.answer === null) {
+          html += `<div class="ai-thinking">✨ Thinking<span class="thinking-dots"></span></div>`;
+        } else {
+          html += `<div class="ai-answer-wrap">
+            <div class="ai-answer-header">✨ AI Answer</div>
+            <div class="ai-answer-body">
+              <div class="ai-answer-text">${processAnswer(turn.answer, conversationSources)}</div>
+              ${idx === 0 ? renderSourceChips(conversationSources) : ''}
+              <div class="ai-disclaimer">⚠ AI answers are generated from your knowledge base. Always verify compliance or regulatory information with official sources before acting on it.</div>
+            </div>
+          </div>`;
         }
-        // Single-paragraph: convert single newlines to <br>
-        return `<p>${html.replace(/\n/g, '<br>')}</p>`;
-      }
-
-      const chips = sources.length ? `
-        <div class="ai-sources-label">Sources used</div>
-        <div>${sources.map((s, i) => {
-          const icon = s.type === 'website' ? '🌐' : s.type === 'document' ? '📄' : '📋';
-          const href = sourceHrefs[i + 1];
-          const ext = s.type !== 'article' ? 'target="_blank" rel="noopener"' : '';
-          return `<a class="ai-source-tag" href="${escHtml(href)}" ${ext}><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:var(--orange);color:white;border-radius:50%;font-size:9px;font-weight:700;flex-shrink:0">${i+1}</span>${icon} ${escHtml(s.title)}</a>`;
-        }).join('')}</div>` : '';
-
-      document.getElementById('resultsList').innerHTML = `
-        <div class="ai-answer-wrap">
-          <div class="ai-answer-header">✨ AI Answer</div>
-          <div class="ai-answer-body">
-            <div class="ai-answer-text">${processAnswer(answer)}</div>
-            ${chips}
-            <div class="ai-disclaimer">⚠ AI answers are generated from your knowledge base. Always verify compliance or regulatory information with official sources before acting on it.</div>
-          </div>
-        </div>
-        <div style="text-align:center;margin-top:6px">
-          <button onclick="setMode('search')" style="background:none;border:none;color:var(--orange);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">← Browse all articles instead</button>
+      });
+      html += '</div>';
+      if (!isWaiting) {
+        html += `<div class="conv-reply-box">
+          <input type="text" id="replyInput" class="hero-input" placeholder="Ask a follow-up question…"
+            onkeydown="if(event.key==='Enter')askFollowUp()">
+          <button class="hero-ask-btn" onclick="askFollowUp()">Send</button>
+          <button class="conv-new-btn" onclick="newQuestion()">New Question</button>
         </div>`;
+      }
+      html += `<div style="text-align:center;margin-top:14px">
+        <button onclick="setMode('search')" style="background:none;border:none;color:var(--orange);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">← Browse all articles instead</button>
+      </div>`;
+      list.innerHTML = html;
     }
 
     // ── Search ────────────────────────────────────────────────────

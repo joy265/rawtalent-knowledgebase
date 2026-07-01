@@ -75,48 +75,56 @@ Rules:
 5. Be practical and direct — team members need actionable answers fast.
 6. For compliance or regulatory questions, always recommend verifying with the official source (ACECQA, state regulator, etc.) as requirements can change.`;
 
-async function askQuestion(question, askedBy) {
+async function askQuestion(question, askedBy, history = []) {
   const client = getClient();
   if (!client) throw new Error('AI is not configured. Please contact your administrator.');
 
   const db = getDb();
-  const matches = await searchKnowledge(db, question);
+  let sources = [];
+  let messages;
 
-  const contextBlocks = matches.map((m, i) => {
-    const label = m.source_type === 'article'
-      ? `Article: ${m.title}${m.category ? ` (${m.category})` : ''}`
-      : `${m.source_type === 'website' ? 'Website' : 'Document'}: ${m.title}${m.origin ? ` — ${m.origin}` : ''}`;
-    const preview = (m.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500);
-    return `[Source ${i + 1}: ${label}]\n${preview}`;
-  }).join('\n\n---\n\n');
-
-  const userContent = matches.length > 0
-    ? `Sources:\n\n${contextBlocks}\n\n---\n\nQuestion: ${question}`
-    : `No matching documents were found in the knowledge base for this question.\n\nQuestion: ${question}\n\nIf you can answer this from your general ECEC/Australian childcare knowledge, please do so and clearly label it as general knowledge. If it is an internal RawTalent-specific question that you cannot answer without sources, say so.`;
+  if (history.length === 0) {
+    // First turn: search knowledge base and build source context
+    const matches = await searchKnowledge(db, question);
+    sources = matches.map((m, i) => ({
+      index: i + 1,
+      title: m.title,
+      type: m.source_type,
+      id: m.id,
+      origin: m.origin || null
+    }));
+    const contextBlocks = matches.map((m, i) => {
+      const label = m.source_type === 'article'
+        ? `Article: ${m.title}${m.category ? ` (${m.category})` : ''}`
+        : `${m.source_type === 'website' ? 'Website' : 'Document'}: ${m.title}${m.origin ? ` — ${m.origin}` : ''}`;
+      const preview = (m.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500);
+      return `[Source ${i + 1}: ${label}]\n${preview}`;
+    }).join('\n\n---\n\n');
+    const userContent = matches.length > 0
+      ? `Sources:\n\n${contextBlocks}\n\n---\n\nQuestion: ${question}`
+      : `No matching documents were found in the knowledge base for this question.\n\nQuestion: ${question}\n\nIf you can answer this from your general ECEC/Australian childcare knowledge, please do so and clearly label it as general knowledge. If it is an internal RawTalent-specific question that you cannot answer without sources, say so.`;
+    messages = [{ role: 'user', content: userContent }];
+  } else {
+    // Follow-up turn: sources already in history context, just append the new question
+    messages = [...history, { role: 'user', content: question }];
+  }
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 600,
     system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userContent }]
+    messages
   });
 
   const answer = response.content[0]?.text || '';
-
-  const sourcesUsed = matches.map((m, i) => ({
-    index: i + 1,
-    title: m.title,
-    type: m.source_type,
-    id: m.id,
-    origin: m.origin || null
-  }));
+  const updatedHistory = [...messages, { role: 'assistant', content: answer }];
 
   await db.execute({
     sql: 'INSERT INTO ai_query_log (question, answer, sources_used, asked_by) VALUES (?, ?, ?, ?)',
-    args: [question, answer, JSON.stringify(sourcesUsed), askedBy]
+    args: [question, answer, JSON.stringify(sources), askedBy]
   });
 
-  return { answer, sources: sourcesUsed };
+  return { answer, sources, history: updatedHistory };
 }
 
 module.exports = { askQuestion };

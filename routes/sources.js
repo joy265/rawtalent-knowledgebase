@@ -14,10 +14,10 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 
 // ── Ask AI — available to all authenticated users ─────────────────
 router.post('/ask', requireAuth, async (req, res) => {
-  const { question } = req.body;
+  const { question, history } = req.body;
   if (!question?.trim()) return res.status(400).json({ error: 'Question is required' });
   try {
-    const result = await askQuestion(question.trim(), req.user.email);
+    const result = await askQuestion(question.trim(), req.user.email, Array.isArray(history) ? history : []);
     res.json(result);
   } catch (err) {
     console.error('AI ask error:', err.message);
