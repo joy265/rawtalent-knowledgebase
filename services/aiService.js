@@ -15,7 +15,7 @@ function buildFtsTerm(text) {
     .join(' OR ');
 }
 
-async function searchKnowledge(db, question, limit = 8) {
+async function searchKnowledge(db, question, limit = 5) {
   const term = buildFtsTerm(question);
   const results = [];
   const seen = new Set();
@@ -86,7 +86,7 @@ async function askQuestion(question, askedBy) {
     const label = m.source_type === 'article'
       ? `Article: ${m.title}${m.category ? ` (${m.category})` : ''}`
       : `${m.source_type === 'website' ? 'Website' : 'Document'}: ${m.title}${m.origin ? ` — ${m.origin}` : ''}`;
-    const preview = (m.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000);
+    const preview = (m.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500);
     return `[Source ${i + 1}: ${label}]\n${preview}`;
   }).join('\n\n---\n\n');
 
@@ -95,8 +95,8 @@ async function askQuestion(question, askedBy) {
     : `No matching documents were found in the knowledge base for this question.\n\nQuestion: ${question}\n\nIf you can answer this from your general ECEC/Australian childcare knowledge, please do so and clearly label it as general knowledge. If it is an internal RawTalent-specific question that you cannot answer without sources, say so.`;
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-5',
-    max_tokens: 1024,
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 600,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }]
   });
