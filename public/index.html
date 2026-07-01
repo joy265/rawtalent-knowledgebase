@@ -329,6 +329,31 @@
       transition: all .15s;
     }
     .ai-source-tag:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-glow); }
+    .source-ref {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      background: var(--orange);
+      color: white;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      text-decoration: none;
+      vertical-align: super;
+      line-height: 1;
+      transition: all .15s;
+      margin: 0 1px;
+    }
+    .source-ref:hover { filter: brightness(1.15); transform: scale(1.1); }
+    .ai-answer-text { font-size: 15px; line-height: 1.85; color: var(--text); }
+    .ai-answer-text p { margin: 0 0 14px; }
+    .ai-answer-text p:last-child { margin-bottom: 0; }
+    .ai-answer-text strong { color: var(--navy); }
+    .ai-answer-text ul, .ai-answer-text ol { margin: 8px 0 14px 22px; }
+    .ai-answer-text li { margin-bottom: 6px; }
     .ai-disclaimer {
       margin-top: 18px;
       padding: 10px 14px;
@@ -518,20 +543,50 @@
     }
 
     function renderAIAnswer(answer, sources) {
+      // Build href lookup keyed by 1-based source number
+      const sourceHrefs = {};
+      sources.forEach((s, i) => {
+        sourceHrefs[i + 1] = s.type === 'article' ? `/article?id=${s.id}` : (s.origin || '#');
+      });
+
+      function processAnswer(text) {
+        // Escape HTML
+        let html = text
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        // Bold: **text**
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Inline [Source N] → linked superscript badge
+        html = html.replace(/\[Source (\d+)\]/g, (match, n) => {
+          const num = parseInt(n);
+          const s = sources[num - 1];
+          if (!s) return match;
+          const href = sourceHrefs[num];
+          const target = s.type !== 'article' ? 'target="_blank" rel="noopener"' : '';
+          return `<a class="source-ref" href="${href.replace(/"/g,'&quot;')}" ${target} title="${escHtml(s.title)}">${num}</a>`;
+        });
+        // Paragraphs: split on double newline
+        const paras = html.split(/\n{2,}/);
+        if (paras.length > 1) {
+          return paras.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+        }
+        // Single-paragraph: convert single newlines to <br>
+        return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+      }
+
       const chips = sources.length ? `
         <div class="ai-sources-label">Sources used</div>
-        <div>${sources.map(s => {
+        <div>${sources.map((s, i) => {
           const icon = s.type === 'website' ? '🌐' : s.type === 'document' ? '📄' : '📋';
-          const href = s.type === 'article' ? `/article?id=${s.id}` : (s.origin || '#');
-          const ext = s.type === 'article' ? '' : 'target="_blank" rel="noopener"';
-          return `<a class="ai-source-tag" href="${escHtml(href)}" ${ext}>${icon} ${escHtml(s.title)}</a>`;
+          const href = sourceHrefs[i + 1];
+          const ext = s.type !== 'article' ? 'target="_blank" rel="noopener"' : '';
+          return `<a class="ai-source-tag" href="${escHtml(href)}" ${ext}><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:var(--orange);color:white;border-radius:50%;font-size:9px;font-weight:700;flex-shrink:0">${i+1}</span>${icon} ${escHtml(s.title)}</a>`;
         }).join('')}</div>` : '';
 
       document.getElementById('resultsList').innerHTML = `
         <div class="ai-answer-wrap">
           <div class="ai-answer-header">✨ AI Answer</div>
           <div class="ai-answer-body">
-            <div class="ai-answer-text">${escHtml(answer)}</div>
+            <div class="ai-answer-text">${processAnswer(answer)}</div>
             ${chips}
             <div class="ai-disclaimer">⚠ AI answers are generated from your knowledge base. Always verify compliance or regulatory information with official sources before acting on it.</div>
           </div>
